@@ -1,0 +1,38 @@
+:root {
+  --qic-primary: #5D44FF;       /* deep purple-blue */
+  --qic-primary-600: #4b36e6;
+  --qic-accent: #00D77F;        /* lime/mint green */
+  --qic-bg: #FFFFFF;            /* main panels */
+  --qic-surface: #F5F6FA;       /* soft grey cards */
+  --qic-text: #2E2E2E;          /* body text */
+  --qic-muted: #6b7280;         /* secondary text */
+  --qic-border: #E6E8EE;        /* subtle borders */
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--qic-surface);
+  color: var(--qic-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+/* Links and buttons use brand colors */
+a { color: var(--qic-primary); text-decoration: none; }
+button {
+  cursor: pointer;
+  background: var(--qic-primary);
+  color: white;
+  border: 1px solid var(--qic-primary-600);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+button:disabled { opacity: 0.6; }
+
+/* Simple card utility */
+.qic-card {
+  background: var(--qic-bg);
+  border: 1px solid var(--qic-border);
+  border-radius: 12px;
+}
+

@@ -17,9 +17,10 @@ $rewardsResp = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/rewards
 $rewardId = $rewardsResp.data.rewards[0].id
 $redeem = Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/rewards/redeem" -Body (@{ rewardId = $rewardId } | ConvertTo-Json)
 
-$skillTree = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/skill-tree"
-$skillId = $skillTree.data.skills[0].id
-$unlock = Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/skill-tree/unlock" -Body (@{ skillId = $skillId } | ConvertTo-Json)
+# Test skill tree endpoints (removed per Track 1 alignment)
+# $skillTree = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/skill-tree"
+# $skillId = $skillTree.data.skills[0].id
+# $unlock = Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/skill-tree/unlock" -Body (@{ skillId = $skillId } | ConvertTo-Json)
 
 $scenario = Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/scenarios/simulate" -Body (@{ lifestyle_factors = @{ age = 30 } } | ConvertTo-Json)
 
@@ -37,8 +38,8 @@ $result = [PSCustomObject]@{
   missionComplete = $complete.success
   rewardId = $rewardId
   rewardRedeem = $redeem.success
-  skillId = $skillId
-  skillUnlock = $unlock.success
+  # skillId = $skillId
+  # skillUnlock = $unlock.success
   scenarioSimulate = $scenario.success
   friendsCount = ($friends.data.friends | Measure-Object).Count
   leaderboardCount = ($leaderboard.data.leaderboard | Measure-Object).Count

@@ -1,12 +1,24 @@
-# 🏗️ QIC Life - Comprehensive Project Structure Analysis
+# 🏗️ QIC Life - Track 1 Hackathon Project Structure
 
 ## 📊 Project Overview
 
-**QIC Life** is a **gamified insurance application** designed for Qatar Insurance Company (QIC). It transforms traditional insurance engagement into an interactive, game-like experience with missions, rewards, skill progression, AI-powered scenarios, and social features.
+**QIC Life** is a **gamified insurance application** designed for Qatar Insurance Company (QIC) as part of Track 1 Hackathon: AI + Gamification. It transforms traditional insurance engagement into an interactive, AI-powered experience with personalized missions, rewards, scenario simulations, and social features.
+
+**Track 1 Focus**: Transform QIC App into a continuous engagement ecosystem using AI-powered gamification to boost retention and multi-product adoption.
 
 ---
 
 ## 🎯 Project Type & Architecture
+
+### **Core Concept**: AI Life Companion that learns from user behavior to create engagement loop
+**Behavior → AI Insight → Mission → Reward → Improved LifeScore → Cross-sell Opportunity**
+
+**Key Features**:
+- **LifeScore Engine**: Aggregates behavior data for perks (0-100 scale)
+- **Personalized Missions**: AI-created adaptive challenges for safe driving, policy reviews
+- **Scenario Simulation**: What-if projections for life decisions
+- **Rewards Hub**: Temu-like shopping with coins, discounts, partner offers
+- **Social Features**: Optional leaderboards and collaborative missions
 
 ### **Architecture Pattern**: Monorepo with Separate Frontend/Backend
 - **Frontend**: React SPA (Single Page Application)
@@ -50,7 +62,6 @@ qiclife/
 │   │   │   ├── Profile.tsx           # User profile & stats
 │   │   │   ├── Rewards.tsx           # Rewards shop (redeem coins)
 │   │   │   ├── Scenarios.tsx         # AI scenario simulations
-│   │   │   ├── SkillTree.tsx         # Skills & progression tree
 │   │   │   └── Social.tsx            # Friends & leaderboard
 │   │   │
 │   │   ├── lib/                      # Utilities & business logic
@@ -79,7 +90,6 @@ qiclife/
 │   │   │   ├── profile.js            # User profile management
 │   │   │   ├── rewards.js            # Rewards shop operations
 │   │   │   ├── scenarios.js          # AI scenario simulations
-│   │   │   ├── skillTree.js          # Skill progression
 │   │   │   ├── social.js             # Friends & leaderboard
 │   │   │   ├── ai.js                 # AI-powered features
 │   │   │   └── onboarding.js         # User onboarding flow
@@ -139,51 +149,50 @@ qiclife/
 
 ---
 
-## 🔑 Core Features & Functionality
+## 🔑 Core Features & Functionality (Track 1 Aligned)
 
-### 1️⃣ **Missions System** (Gamification Core)
-- **What**: Daily/weekly tasks users complete to earn rewards
-- **Features**: Start, complete, track progress, collaborative missions
+### 1️⃣ **AI LifeScore Engine** (Core Gamification)
+- **What**: Dynamic 0-100 metric aggregating behavior data for perks
+- **Features**: Behavior analysis, perk unlocking, insurance rate optimization
+- **Database**: \`users.lifescore\` field (0-100 scale)
+- **UI**: LifeScore dashboard with progress visualization
+
+### 2️⃣ **AI Personalized Missions** (Product Discovery)
+- **What**: Adaptive daily/weekly challenges driving product discovery
+- **Features**: Safe driving missions, policy review challenges, AI recommendations
 - **Endpoints**: \`GET /api/missions\`, \`POST /api/missions/start\`, \`POST /api/missions/complete\`
 - **Database**: \`missions\`, \`user_missions\` tables
-- **UI**: Mission cards with progress, XP rewards, difficulty badges
+- **UI**: Mission cards with AI-generated recommendations
 
-### 2️⃣ **Rewards Shop**
-- **What**: Redeem earned coins for digital/physical rewards
-- **Features**: Browse rewards, redeem with coins, track redemptions
-- **Endpoints**: \`GET /api/rewards\`, \`POST /api/rewards/redeem\`
-- **Database**: \`rewards\`, \`user_rewards\` tables
-- **UI**: Card grid with coin costs, redemption buttons
-
-### 3️⃣ **Skill Tree** (Progression System)
-- **What**: RPG-style skill unlocking with XP
-- **Features**: View skills, unlock with XP, skill dependencies
-- **Endpoints**: \`GET /api/skill-tree\`, \`POST /api/skill-tree/unlock\`
-- **Database**: \`skill_trees\`, \`user_skills\` tables
-- **UI**: Tree visualization with locked/unlocked states
-
-### 4️⃣ **AI Scenarios** (Personalization)
-- **What**: AI-generated life insurance scenarios based on user data
-- **Features**: Simulate scenarios, get recommendations
+### 3️⃣ **Scenario Simulation** (Decision Modeling)
+- **What**: What-if AI projections for life decisions
+- **Features**: Risk assessment, outcome prediction, recommendation engine
 - **Endpoints**: \`POST /api/scenarios/simulate\`
 - **Database**: \`scenarios\`, \`user_scenarios\` tables
 - **UI**: Input form → AI simulation → Results display
 
-### 5️⃣ **Social Features**
-- **What**: Friends, leaderboards, social engagement
-- **Features**: Add friends, view leaderboard, compare stats
+### 4️⃣ **Rewards Hub** (Temu-like Shopping)
+- **What**: Coins-to-offers conversion with shopping cart experience
+- **Features**: Browse rewards, redeem with coins, partner offers, next unlocks
+- **Endpoints**: \`GET /api/rewards\`, \`POST /api/rewards/redeem\`
+- **Database**: \`rewards\`, \`user_rewards\` tables
+- **UI**: Card grid with coin costs, redemption buttons, shopping cart
+
+### 5️⃣ **Social Features** (Optional)
+- **What**: Leaderboards and collaborative missions
+- **Features**: Friends list, competitive scores, shared missions
 - **Endpoints**: \`GET /api/social/friends\`, \`GET /api/social/leaderboard\`
-- **Database**: \`social_connections\`, user stats
+- **Database**: \`social_connections\` table
 - **UI**: Friends list + leaderboard with rankings
 
-### 6️⃣ **Profile Management**
-- **What**: User profile, stats, settings
-- **Features**: View/update profile, track XP/level/coins
-- **Endpoints**: \`GET /api/profile\`, \`PUT /api/profile\`
-- **Database**: \`users\`, \`user_stats\` tables
-- **UI**: Profile form with stats dashboard
+### 6️⃣ **Onboarding Quiz** (Personalization)
+- **What**: Quiz feeding into AI personalization engine
+- **Features**: Risk assessment, lifestyle analysis, integration preferences
+- **Endpoints**: \`POST /api/onboarding/submit\`, \`GET /api/onboarding/progress\`
+- **Database**: \`onboarding_responses\`, \`user_profiles\` tables
+- **UI**: Multi-step quiz form with progress tracking
 
-### 7️⃣ **Health Dashboard**
+### 7️⃣ **Health Dashboard** (Monitoring)
 - **What**: Backend system monitoring
 - **Features**: API health check, version info
 - **Endpoints**: \`GET /api/health\`
@@ -220,8 +229,7 @@ Request → CORS → Helmet → Rate Limiter → Session Auth → Validation →
 | \`users\` | Core user data | email, xp, level, coins, lifescore, streak_days |
 | \`missions\` | Available missions | category, difficulty, xp_reward, requirements |
 | \`user_missions\` | User progress | user_id, mission_id, status, progress, started_at |
-| \`skill_trees\` | Skill definitions | title, description, xp_cost, prerequisites |
-| \`user_skills\` | Unlocked skills | user_id, skill_id, unlocked_at |
+| \`scenarios\` | AI scenarios | risk_level, recommendations |
 | \`rewards\` | Reward catalog | category, rarity, coins_cost, stock |
 | \`user_rewards\` | Redemptions | user_id, reward_id, redeemed_at |
 | \`scenarios\` | AI scenarios | risk_level, recommendations |
@@ -302,8 +310,6 @@ Backend → Frontend (JSON response)
 /api/missions/complete POST Complete a mission
 /api/rewards         GET    List rewards
 /api/rewards/redeem  POST   Redeem reward
-/api/skill-tree      GET    Get skill tree
-/api/skill-tree/unlock POST Unlock skill
 /api/scenarios/simulate POST Simulate scenario
 /api/social/friends  GET    Get friends list
 /api/social/leaderboard GET Get leaderboard
@@ -454,7 +460,7 @@ npm run backend:dev
 ## 📊 Summary Statistics
 
 - **Total Files**: ~100+ (including node_modules)
-- **Frontend Pages**: 7 (Health, Missions, Scenarios, Rewards, SkillTree, Social, Profile)
+- **Frontend Pages**: 6 (Health, Missions, Scenarios, Rewards, Social, Profile)
 - **Backend Routes**: 9 route files
 - **API Endpoints**: ~20+ endpoints
 - **Database Tables**: 12+ tables (in full schema)
@@ -467,7 +473,7 @@ npm run backend:dev
 
 1. **Modern Stack**: Uses latest React, Vite, TypeScript, Tailwind
 2. **Monorepo Structure**: Frontend + Backend in same project
-3. **Gamification Focus**: Missions, XP, skills, rewards, leaderboards
+3. **Gamification Focus**: Missions, XP, rewards, leaderboards
 4. **Session-Based Auth**: Simple, no external providers needed for MVP
 5. **Supabase Ready**: Schema defined, but using mock data for now
 6. **Production-Grade Security**: CORS, Helmet, Rate Limiting, Validation

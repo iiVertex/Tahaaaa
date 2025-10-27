@@ -17,7 +17,6 @@ import healthRoutes from './routes/health.js';
 import socialRoutes from './routes/social.js';
 import rewardsRoutes from './routes/rewards.js';
 import scenariosRoutes from './routes/scenarios.js';
-import skillTreeRoutes from './routes/skillTree.js';
 
 // Load environment variables
 dotenv.config();
@@ -56,7 +55,6 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/rewards', rewardsRoutes);
 app.use('/api/scenarios', scenariosRoutes);
-app.use('/api/skill-tree', skillTreeRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

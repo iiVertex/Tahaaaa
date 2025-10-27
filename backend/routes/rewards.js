@@ -24,7 +24,7 @@ router.get('/badges', authenticateUser, asyncHandler(async (req, res) => {
 
 router.get('/offers', authenticateUser, asyncHandler(async (req, res) => {
   const offers = [
-    { id: 'offer-1', title: 'QIC Partner Spa', description: '20% off spa treatments', partner: 'QIC Spa', discount: '20%', valid_until: '2025-12-31', requirements: '500 LifeScore' },
+    { id: 'offer-1', title: 'QIC Partner Spa', description: '20% off spa treatments', partner: 'QIC Spa', discount: '20%', valid_until: '2025-12-31', requirements: '50 LifeScore' },
   ];
   res.json({ success: true, data: { offers } });
 }));

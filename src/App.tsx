@@ -4,7 +4,6 @@ import Health from './pages/Health';
 import Missions from './pages/Missions';
 import Scenarios from './pages/Scenarios';
 import Rewards from './pages/Rewards';
-import SkillTree from './pages/SkillTree';
 import Social from './pages/Social';
 import Profile from './pages/Profile';
 
@@ -17,7 +16,6 @@ export default function App() {
         <Link to="/missions">Missions</Link>
         <Link to="/scenarios">Scenarios</Link>
         <Link to="/rewards">Rewards</Link>
-        <Link to="/skill-tree">Skill Tree</Link>
         <Link to="/social">Social</Link>
         <Link to="/profile">Profile</Link>
       </nav>
@@ -27,7 +25,6 @@ export default function App() {
           <Route path="/missions" element={<Missions />} />
           <Route path="/scenarios" element={<Scenarios />} />
           <Route path="/rewards" element={<Rewards />} />
-          <Route path="/skill-tree" element={<SkillTree />} />
           <Route path="/social" element={<Social />} />
           <Route path="/profile" element={<Profile />} />
         </Routes>

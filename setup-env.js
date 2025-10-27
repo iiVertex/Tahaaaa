@@ -83,7 +83,7 @@ VITE_ENABLE_THEME_SWITCHING=true
 # GAMIFICATION SETTINGS
 # ============================================================================
 VITE_XP_PER_LEVEL=100
-VITE_MAX_LIFESCORE=1000
+VITE_MAX_LIFESCORE=100
 VITE_MAX_STREAK_DAYS=365`;
 
 const envPath = path.join(__dirname, '.env');

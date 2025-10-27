@@ -1,11 +1,11 @@
--- QIC Gamified Insurance App Database Schema
--- This file contains all tables, relationships, indexes, and RLS policies
--- Execute this file in your Supabase SQL editor to set up the complete database
+-- QIC Life Track 1 Hackathon Schema - AI + Gamification Focus
+-- Consolidated schema aligned with Track 1 brief: LifeScore Engine, Personalized Missions, 
+-- Scenario Simulation, Rewards Hub, and Social Features (optional)
 
 -- Enable necessary extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Users table - Core user information
+-- Users table - Core user information with LifeScore (0-100 scale)
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Missions table - Available missions and quests
+-- Missions table - AI Personalized Missions for product discovery
 CREATE TABLE missions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     category VARCHAR(50) NOT NULL CHECK (category IN ('safe_driving', 'health', 'financial_guardian', 'family_protection', 'lifestyle')),
@@ -36,7 +36,7 @@ CREATE TABLE missions (
     is_collaborative BOOLEAN DEFAULT FALSE,
     max_participants INTEGER DEFAULT 1 CHECK (max_participants >= 1),
     duration_days INTEGER DEFAULT 7 CHECK (duration_days > 0),
-    is_active BOOLEAN DEFAULT TRUE,
+    is_active BOOAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -57,8 +57,7 @@ CREATE TABLE user_missions (
     UNIQUE(user_id, mission_id)
 );
 
-
--- Rewards table - Available rewards and badges
+-- Rewards table - Rewards Hub (coins → offers)
 CREATE TABLE rewards (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     type VARCHAR(50) NOT NULL CHECK (type IN ('badge', 'coin_boost', 'partner_offer', 'streak_bonus', 'achievement')),
@@ -75,31 +74,17 @@ CREATE TABLE rewards (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- User rewards - Track earned rewards
+-- User rewards - Track reward redemptions
 CREATE TABLE user_rewards (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     reward_id UUID NOT NULL REFERENCES rewards(id) ON DELETE CASCADE,
-    earned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    context JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(user_id, reward_id)
+    redeemed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    status VARCHAR(20) DEFAULT 'redeemed' CHECK (status IN ('redeemed', 'pending', 'cancelled')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Social connections - Friends and family relationships
-CREATE TABLE social_connections (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    friend_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    relationship_type VARCHAR(20) NOT NULL CHECK (relationship_type IN ('friend', 'family', 'colleague', 'mentor')),
-    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'blocked')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(user_id, friend_id),
-    CHECK (user_id != friend_id)
-);
-
--- Scenarios - AI scenario simulations
+-- Scenarios table - Scenario Simulation (what-if AI projections)
 CREATE TABLE scenarios (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title_en VARCHAR(255) NOT NULL,
@@ -114,72 +99,85 @@ CREATE TABLE scenarios (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- User scenarios - Track user scenario simulations
+-- User scenarios - Track scenario simulations
 CREATE TABLE user_scenarios (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     scenario_id UUID NOT NULL REFERENCES scenarios(id) ON DELETE CASCADE,
-    inputs JSONB NOT NULL DEFAULT '{}',
-    results JSONB DEFAULT '{}',
+    input_data JSONB NOT NULL DEFAULT '{}',
+    result_data JSONB NOT NULL DEFAULT '{}',
     lifescore_impact INTEGER DEFAULT 0,
+    xp_reward INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Collaborative missions - Group mission tracking
-CREATE TABLE collaborative_missions (
+-- Social connections - Optional leaderboards & social proof
+CREATE TABLE social_connections (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    mission_id UUID NOT NULL REFERENCES missions(id) ON DELETE CASCADE,
-    leader_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    participants JSONB NOT NULL DEFAULT '[]',
-    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'failed', 'cancelled')),
-    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    completed_at TIMESTAMP WITH TIME ZONE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    friend_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'blocked')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, friend_id)
+);
+
+-- User profiles - Store onboarding quiz responses for personalization
+CREATE TABLE user_profiles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    profile_json JSONB NOT NULL DEFAULT '{}',
+    encrypted_data TEXT,
+    onboarding_completed BOOLEAN DEFAULT FALSE,
+    onboarding_completed_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- AI recommendations - Store AI-generated recommendations
-CREATE TABLE ai_recommendations (
+-- Onboarding responses - Quiz data for AI personalization
+CREATE TABLE onboarding_responses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    type VARCHAR(50) NOT NULL CHECK (type IN ('mission', 'scenario', 'social', 'reward')),
-    title_en VARCHAR(255) NOT NULL,
-    title_ar VARCHAR(255) NOT NULL,
-    description_en TEXT,
-    description_ar TEXT,
-    priority INTEGER DEFAULT 1 CHECK (priority >= 1 AND priority <= 5),
-    context JSONB DEFAULT '{}',
-    is_active BOOLEAN DEFAULT TRUE,
-    expires_at TIMESTAMP WITH TIME ZONE,
+    step_number INTEGER NOT NULL CHECK (step_number >= 1 AND step_number <= 7),
+    response_data JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Indexes for performance
-CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_lifescore ON users(lifescore);
 CREATE INDEX idx_users_level ON users(level);
+CREATE INDEX idx_users_xp ON users(xp);
+
+CREATE INDEX idx_missions_category ON missions(category);
+CREATE INDEX idx_missions_difficulty ON missions(difficulty);
+CREATE INDEX idx_missions_is_active ON missions(is_active);
+
 CREATE INDEX idx_user_missions_user_id ON user_missions(user_id);
 CREATE INDEX idx_user_missions_mission_id ON user_missions(mission_id);
 CREATE INDEX idx_user_missions_status ON user_missions(status);
+
+CREATE INDEX idx_rewards_type ON rewards(type);
+CREATE INDEX idx_rewards_badge_rarity ON rewards(badge_rarity);
+CREATE INDEX idx_rewards_coins_cost ON rewards(coins_cost);
+
 CREATE INDEX idx_user_rewards_user_id ON user_rewards(user_id);
 CREATE INDEX idx_user_rewards_reward_id ON user_rewards(reward_id);
-CREATE INDEX idx_social_connections_user_id ON social_connections(user_id);
-CREATE INDEX idx_social_connections_friend_id ON social_connections(friend_id);
+
+CREATE INDEX idx_scenarios_category ON scenarios(category);
+CREATE INDEX idx_scenarios_is_active ON scenarios(is_active);
+
 CREATE INDEX idx_user_scenarios_user_id ON user_scenarios(user_id);
 CREATE INDEX idx_user_scenarios_scenario_id ON user_scenarios(scenario_id);
-CREATE INDEX idx_ai_recommendations_user_id ON ai_recommendations(user_id);
-CREATE INDEX idx_ai_recommendations_type ON ai_recommendations(type);
+
+CREATE INDEX idx_social_connections_user_id ON social_connections(user_id);
+CREATE INDEX idx_social_connections_friend_id ON social_connections(friend_id);
+CREATE INDEX idx_social_connections_status ON social_connections(status);
+
+CREATE INDEX idx_user_profiles_user_id ON user_profiles(user_id);
+CREATE INDEX idx_onboarding_responses_user_id ON onboarding_responses(user_id);
+CREATE INDEX idx_onboarding_responses_step ON onboarding_responses(step_number);
 
 -- Functions for common operations
-CREATE OR REPLACE FUNCTION update_user_level()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Calculate level based on XP (100 XP per level)
-    NEW.level = (NEW.xp / 100) + 1;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -188,12 +186,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Triggers
-CREATE TRIGGER trigger_update_user_level
-    BEFORE UPDATE ON users
-    FOR EACH ROW
-    EXECUTE FUNCTION update_user_level();
-
+-- Triggers for updated_at
 CREATE TRIGGER trigger_update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW
@@ -209,14 +202,8 @@ CREATE TRIGGER trigger_update_user_missions_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
-
 CREATE TRIGGER trigger_update_rewards_updated_at
     BEFORE UPDATE ON rewards
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at();
-
-CREATE TRIGGER trigger_update_social_connections_updated_at
-    BEFORE UPDATE ON social_connections
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
@@ -225,46 +212,24 @@ CREATE TRIGGER trigger_update_scenarios_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
-CREATE TRIGGER trigger_update_collaborative_missions_updated_at
-    BEFORE UPDATE ON collaborative_missions
+CREATE TRIGGER trigger_update_social_connections_updated_at
+    BEFORE UPDATE ON social_connections
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
--- Row Level Security (RLS) Policies
--- Note: These are commented out for manual setup. Uncomment and adjust as needed.
+CREATE TRIGGER trigger_update_user_profiles_updated_at
+    BEFORE UPDATE ON user_profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
 
--- ALTER TABLE users ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE user_missions ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE user_rewards ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE social_connections ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE user_scenarios ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE collaborative_missions ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE ai_recommendations ENABLE ROW LEVEL SECURITY;
-
--- Example RLS policies (uncomment and modify as needed):
--- CREATE POLICY "Users can view own data" ON users FOR SELECT USING (auth.uid() = id);
--- CREATE POLICY "Users can update own data" ON users FOR UPDATE USING (auth.uid() = id);
--- CREATE POLICY "Users can view own missions" ON user_missions FOR SELECT USING (auth.uid() = user_id);
--- CREATE POLICY "Users can update own missions" ON user_missions FOR UPDATE USING (auth.uid() = user_id);
-
--- Insert sample data (optional - for testing)
--- INSERT INTO users (email, lifescore, xp, level, streak_days, language_preference) VALUES
--- ('test@example.com', 750, 250, 3, 5, 'en');
-
--- INSERT INTO missions (category, title_en, title_ar, description_en, description_ar, difficulty, xp_reward, lifescore_impact) VALUES
--- ('safe_driving', 'Safe Driver Challenge', 'تحدي السائق الآمن', 'Complete 7 days of safe driving', 'أكمل 7 أيام من القيادة الآمنة', 'medium', 50, 10);
-
-
--- INSERT INTO rewards (type, title_en, title_ar, badge_icon, badge_rarity) VALUES
--- ('badge', 'Safe Driver', 'سائق آمن', 'shield', 'rare');
-
-COMMENT ON TABLE users IS 'Core user information including gamification stats';
-COMMENT ON TABLE missions IS 'Available missions and quests for users';
+-- Comments
+COMMENT ON TABLE users IS 'Core user data with LifeScore (0-100 scale) for Track 1 hackathon';
+COMMENT ON TABLE missions IS 'AI Personalized Missions for product discovery and engagement';
 COMMENT ON TABLE user_missions IS 'User progress tracking for missions';
-COMMENT ON TABLE rewards IS 'Available rewards and badges';
-COMMENT ON TABLE user_rewards IS 'User earned rewards';
-COMMENT ON TABLE social_connections IS 'Friends and family relationships';
-COMMENT ON TABLE scenarios IS 'AI scenario simulations';
+COMMENT ON TABLE rewards IS 'Rewards Hub - coins to offers conversion';
+COMMENT ON TABLE user_rewards IS 'User reward redemptions';
+COMMENT ON TABLE scenarios IS 'Scenario Simulation - what-if AI projections';
 COMMENT ON TABLE user_scenarios IS 'User scenario simulation results';
-COMMENT ON TABLE collaborative_missions IS 'Group mission tracking';
-COMMENT ON TABLE ai_recommendations IS 'AI-generated recommendations for users';
+COMMENT ON TABLE social_connections IS 'Optional leaderboards and social proof';
+COMMENT ON TABLE user_profiles IS 'User profiles with onboarding quiz data for AI personalization';
+COMMENT ON TABLE onboarding_responses IS 'Quiz responses feeding into AI personalization engine';

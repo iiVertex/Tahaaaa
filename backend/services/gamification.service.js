@@ -5,7 +5,7 @@ import { logger } from '../utils/logger.js';
 export class GamificationService {
   constructor() {
     this.xpPerLevel = 100;
-    this.maxLifeScore = 1000;
+    this.maxLifeScore = 100;
   }
 
   // Calculate XP required for next level
@@ -275,13 +275,13 @@ export class GamificationService {
       }
 
       // LifeScore suggestions
-      if (stats.lifescore < 500) {
+      if (stats.lifescore < 50) {
         suggestions.push({
           type: 'lifescore',
           title: 'Health Champion',
-          description: 'Reach 500 LifeScore for better insurance rates',
+          description: 'Reach 50 LifeScore for better insurance rates',
           progress: stats.lifescore,
-          target: 500
+          target: 50
         });
       }
 

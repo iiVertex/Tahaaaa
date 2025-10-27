@@ -20,7 +20,7 @@ class MockDatabaseService {
         email: 'user@qiclife.com',
         username: 'qicuser',
         avatar_url: '',
-        lifescore: 450,
+        lifescore: 45,
         xp: 350,
         level: 4,
         current_streak: 3,
@@ -58,7 +58,6 @@ class MockDatabaseService {
     this.user_profiles = [];
     this.onboarding_responses = [];
     this.user_sessions = [];
-    this.user_skills = [];
     this.user_stats = new Map(); // session_id -> stats
   }
 
@@ -143,15 +142,6 @@ class MockDatabaseService {
     return this.onboarding_responses.filter(r => r.user_id === userId).sort((a, b) => a.step_number - b.step_number);
   }
 
-  async getUserSkills(userId) {
-    return this.user_skills.filter(s => s.user_id === userId);
-  }
-
-  async unlockUserSkill(sessionId, skillId, payload = {}) {
-    const exists = this.user_skills.find(s => s.session_id === sessionId && s.id === skillId);
-    if (!exists) this.user_skills.push({ session_id: sessionId, id: skillId, isCompleted: true, ...payload });
-    return true;
-  }
 
   // Session-based stats operations
   async getStats(sessionId) {

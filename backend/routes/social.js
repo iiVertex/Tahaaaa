@@ -8,8 +8,8 @@ const router = express.Router();
 // Get friends list (mock from profile or static)
 router.get('/friends', authenticateUser, asyncHandler(async (req, res) => {
   const friends = [
-    { id: 'friend-1', username: 'layla', level: 6, lifescore: 620, current_streak: 4, avatar_url: '' },
-    { id: 'friend-2', username: 'omar', level: 8, lifescore: 740, current_streak: 9, avatar_url: '' },
+    { id: 'friend-1', username: 'layla', level: 6, lifescore: 62, current_streak: 4, avatar_url: '' },
+    { id: 'friend-2', username: 'omar', level: 8, lifescore: 74, current_streak: 9, avatar_url: '' },
   ];
   res.json({ success: true, data: { friends } });
 }));
@@ -18,9 +18,9 @@ router.get('/friends', authenticateUser, asyncHandler(async (req, res) => {
 router.get('/leaderboard', authenticateUser, asyncHandler(async (req, res) => {
   const you = await db.getUserById(req.user.id);
   const leaderboard = [
-    { id: 'u-top1', username: 'amina', level: 12, lifescore: 900, xp: 1200 },
-    { id: 'u-top2', username: 'yusuf', level: 11, lifescore: 870, xp: 1150 },
-    { id: you?.id || 'mock-user-001', username: you?.username || 'you', level: you?.level || 4, lifescore: you?.lifescore || 450, xp: you?.xp || 350 },
+    { id: 'u-top1', username: 'amina', level: 12, lifescore: 90, xp: 1200 },
+    { id: 'u-top2', username: 'yusuf', level: 11, lifescore: 87, xp: 1150 },
+    { id: you?.id || 'mock-user-001', username: you?.username || 'you', level: you?.level || 4, lifescore: you?.lifescore || 45, xp: you?.xp || 350 },
   ];
   res.json({ success: true, data: { leaderboard } });
 }));

@@ -78,7 +78,7 @@ export const updateProfileSchema = Joi.object({
 // AI request validation
 export const aiRecommendationSchema = Joi.object({
   context: Joi.string().max(1000).optional(),
-  type: Joi.string().valid('mission', 'skill', 'scenario').optional()
+  type: Joi.string().valid('mission', 'scenario').optional()
 });
 
 // Generic validation middleware

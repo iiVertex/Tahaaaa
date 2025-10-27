@@ -1,6 +1,6 @@
-# QIC Gamified Insurance App - MVP
+# QIC Life - Track 1 Hackathon: AI + Gamification
 
-A gamified insurance application for QIC featuring missions, rewards, skill trees, and AI-powered scenarios.
+A gamified insurance application for QIC featuring AI-powered personalization, missions, rewards, and scenario simulations aligned with Track 1 hackathon brief.
 
 ## 🚀 Quick Start (MVP)
 
@@ -36,21 +36,27 @@ npm run dev
 - Frontend: http://localhost:8080
 - Backend API: http://localhost:3001
 
-## ✨ Features (MVP)
+## ✨ Features (Track 1 Aligned)
 
-- **Health Dashboard**: System status and version info
-- **Missions**: Start and complete gamified tasks
-- **Scenarios**: AI-powered life scenario simulations  
-- **Rewards**: Redeem coins for rewards
-- **Skill Tree**: Unlock skills with XP
-- **Social**: Friends list and leaderboard
-- **Profile**: User profile management
+- **AI LifeScore Engine**: Dynamic 0-100 metric aggregating behavior data for perks
+- **AI Personalized Missions**: Adaptive daily/weekly challenges driving product discovery
+- **Scenario Simulation**: What-if AI projections for decision modeling
+- **Rewards Hub**: Coins-to-offers conversion with Temu-like shopping experience
+- **Leaderboards & Social Proof**: Optional competitive scores and shared missions
+- **Onboarding Quiz**: Personalization mechanism feeding into AI recommendations
+- **Health Dashboard**: System monitoring and status
 
-## 🎨 Design
+## 🎯 Track 1 Hackathon Focus
 
-- **QIC Brand Colors**: Purple-blue primary (#5D44FF), green accent (#00D77F)
-- **Clean UI**: White backgrounds, dark grey text
-- **Responsive**: Works on desktop and mobile
+**Core Concept**: AI Life Companion that learns from user behavior to create engagement loop:
+**Behavior → AI Insight → Mission → Reward → Improved LifeScore → Cross-sell Opportunity**
+
+**Key Features**:
+- **LifeScore Engine**: Aggregates behavior data for perks (0-100 scale)
+- **Personalized Missions**: AI-created adaptive challenges for safe driving, policy reviews
+- **Scenario Simulation**: What-if projections for life decisions
+- **Rewards Hub**: Temu-like shopping with coins, discounts, partner offers
+- **Social Features**: Optional leaderboards and collaborative missions
 
 ## 🔧 Technical Stack
 

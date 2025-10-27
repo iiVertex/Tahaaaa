@@ -44,17 +44,7 @@ export async function redeemReward(id: string) {
   return data;
 }
 
-// Skill Tree
-export async function getSkills() {
-  const { data } = await api.get('/skill-tree');
-  // backend returns tree with levels/skills; normalize to skills list for UI
-  const skills = data?.data?.skills || data?.skills || [];
-  return skills;
-}
-export async function unlockSkill(id: string) {
-  const { data } = await api.post('/skill-tree/unlock', { skillId: id });
-  return data;
-}
+// Skill Tree removed per Track 1 alignment
 
 // Social
 export async function getSocialFeed() {

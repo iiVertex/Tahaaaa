@@ -225,12 +225,12 @@ router.get('/insights',
 
       // LifeScore insights
       const lifescore = profileData.stats?.lifescore || 0;
-      if (lifescore < 500) {
+      if (lifescore < 50) {
         insights.push({
           type: 'lifescore',
           priority: 'high',
           title: 'Boost Your LifeScore',
-          message: 'Your LifeScore is below 500. Complete health missions to improve it.',
+          message: 'Your LifeScore is below 50. Complete health missions to improve it.',
           action: 'Complete health missions',
           icon: '📈'
         });

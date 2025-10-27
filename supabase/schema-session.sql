@@ -9,7 +9,6 @@ DROP TABLE IF EXISTS user_token_limits CASCADE;
 
 DROP TABLE IF EXISTS user_scenarios CASCADE;
 DROP TABLE IF EXISTS user_rewards CASCADE;
-DROP TABLE IF EXISTS user_skills CASCADE;
 DROP TABLE IF EXISTS user_missions CASCADE;
 DROP TABLE IF EXISTS social_connections CASCADE;
 DROP TABLE IF EXISTS onboarding_responses CASCADE;
@@ -18,7 +17,6 @@ DROP TABLE IF EXISTS user_stats CASCADE;
 DROP TABLE IF EXISTS user_sessions CASCADE;
 
 DROP TABLE IF EXISTS missions CASCADE;
-DROP TABLE IF EXISTS skills CASCADE;
 DROP TABLE IF EXISTS rewards CASCADE;
 DROP TABLE IF EXISTS scenarios CASCADE;
 
@@ -73,19 +71,6 @@ CREATE TABLE missions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE skills (
-  id TEXT PRIMARY KEY,
-  name_en TEXT NOT NULL,
-  name_ar TEXT,
-  description_en TEXT,
-  description_ar TEXT,
-  category mission_category NOT NULL,
-  xp_cost INT NOT NULL DEFAULT 0,
-  lifescore_bonus INT NOT NULL DEFAULT 0,
-  prerequisites TEXT[] NOT NULL DEFAULT '{}',
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
 
 CREATE TABLE rewards (
   id TEXT PRIMARY KEY,
@@ -151,12 +136,6 @@ CREATE TABLE user_missions (
   last_updated TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE user_skills (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  session_id TEXT NOT NULL,
-  skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
-  unlocked_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
 
 CREATE TABLE user_rewards (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -224,8 +203,6 @@ CREATE INDEX idx_user_stats_session ON user_stats(session_id);
 CREATE INDEX idx_user_missions_session ON user_missions(session_id);
 CREATE INDEX idx_user_missions_mission ON user_missions(mission_id);
 
-CREATE INDEX idx_user_skills_session ON user_skills(session_id);
-CREATE INDEX idx_user_skills_skill ON user_skills(skill_id);
 
 CREATE INDEX idx_user_rewards_session ON user_rewards(session_id);
 CREATE INDEX idx_user_rewards_reward ON user_rewards(reward_id);

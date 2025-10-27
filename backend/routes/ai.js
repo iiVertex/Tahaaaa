@@ -3,7 +3,8 @@ import { validate, aiRecommendationSchema } from '../middleware/validation.js';
 import { authenticateUser } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { aiService } from '../services/ai.service.js';
-import { db } from '../services/supabase.js';
+import { strictRateLimit } from '../middleware/security.js';
+import { profileService as profileServiceSingleton } from '../services/profile.service.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
@@ -11,33 +12,34 @@ const router = express.Router();
 // Get AI recommendations
 router.get('/recommendations', 
   authenticateUser,
+  strictRateLimit,
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const { type = 'mission' } = req.query;
 
     try {
       // Get user profile for personalized recommendations
-      const userProfile = await db.getUserProfile(userId);
-      const profileData = userProfile?.profile_json || {};
+      const composite = await profileServiceSingleton.getProfile(userId);
+      const profileData = composite?.userProfile?.profile_json || {};
 
-      // Get AI recommendations
-      const recommendations = await aiService.generateMissionRecommendations(userId, profileData);
-
-      // Filter by type if specified
-      const filteredRecommendations = type === 'all' 
-        ? recommendations 
-        : recommendations.filter(rec => rec.type === type);
+      // Get AI outputs: insights + suggested missions
+      const [insights, suggestedMissions] = await Promise.all([
+        aiService.predictInsights(userId),
+        aiService.recommendAdaptiveMissions(userId, profileData)
+      ]);
 
       logger.info('AI recommendations generated', {
         userId,
         type,
-        count: filteredRecommendations.length
+        insights: insights?.length || 0,
+        missions: suggestedMissions?.length || 0
       });
 
       res.json({
         success: true,
         data: {
-          recommendations: filteredRecommendations,
+          insights,
+          suggested_missions: suggestedMissions,
           generated_at: new Date().toISOString(),
           type
         }
@@ -57,6 +59,7 @@ router.get('/recommendations',
 // Get AI recommendations with context
 router.post('/recommendations', 
   authenticateUser,
+  strictRateLimit,
   validate(aiRecommendationSchema),
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
@@ -64,34 +67,31 @@ router.post('/recommendations',
 
     try {
       // Get user profile
-      const userProfile = await db.getUserProfile(userId);
-      const profileData = userProfile?.profile_json || {};
+      const composite = await profileServiceSingleton.getProfile(userId);
+      const profileData = composite?.userProfile?.profile_json || {};
 
       // Add context to profile for more personalized recommendations
-      const contextualProfile = {
-        ...profileData,
-        context
-      };
+      const contextualProfile = { ...profileData, context };
 
-      // Get AI recommendations
-      const recommendations = await aiService.generateMissionRecommendations(userId, contextualProfile);
-
-      // Filter by type if specified
-      const filteredRecommendations = type === 'all' 
-        ? recommendations 
-        : recommendations.filter(rec => rec.type === type);
+      // Get AI outputs: insights + suggested missions
+      const [insights, suggestedMissions] = await Promise.all([
+        aiService.predictInsights(userId),
+        aiService.recommendAdaptiveMissions(userId, contextualProfile)
+      ]);
 
       logger.info('Contextual AI recommendations generated', {
         userId,
         type,
         context: context?.substring(0, 100), // Log first 100 chars
-        count: filteredRecommendations.length
+        insights: insights?.length || 0,
+        missions: suggestedMissions?.length || 0
       });
 
       res.json({
         success: true,
         data: {
-          recommendations: filteredRecommendations,
+          insights,
+          suggested_missions: suggestedMissions,
           generated_at: new Date().toISOString(),
           type,
           context
@@ -112,6 +112,7 @@ router.post('/recommendations',
 // Generate AI profile
 router.post('/profile', 
   authenticateUser,
+  strictRateLimit,
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const { onboardingData } = req.body;
@@ -154,6 +155,7 @@ router.post('/profile',
 // Simulate scenario
 router.post('/scenarios/simulate', 
   authenticateUser,
+  strictRateLimit,
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const scenarioInputs = req.body;
@@ -167,8 +169,8 @@ router.post('/scenarios/simulate',
       }
 
       // Get user profile for context
-      const userProfile = await db.getUserProfile(userId);
-      const profileData = userProfile?.profile_json || {};
+      const composite = await profileServiceSingleton.getProfile(userId);
+      const profileData = composite?.userProfile?.profile_json || {};
 
       // Add user context to scenario inputs
       const contextualInputs = {
@@ -213,18 +215,18 @@ router.get('/insights',
 
     try {
       // Get user profile and stats
-      const userProfile = await db.getUserProfile(userId);
-      const profileData = userProfile?.profile_json || {};
+      const composite = await profileServiceSingleton.getProfile(userId);
+      const profileData = composite?.userProfile?.profile_json || {};
 
-      // Get user's recent activity
-      const userMissions = await db.getUserMissions(userId);
-      const recentMissions = userMissions.slice(0, 5);
+      // Get user's recent activity (placeholder for now)
+      const userMissions = [];
+      const recentMissions = [];
 
-      // Generate insights based on user data
+      // Generate insights (static + from aiService in future)
       const insights = [];
 
       // LifeScore insights
-      const lifescore = profileData.stats?.lifescore || 0;
+      const lifescore = composite?.stats?.lifescore || 0;
       if (lifescore < 50) {
         insights.push({
           type: 'lifescore',
@@ -237,7 +239,7 @@ router.get('/insights',
       }
 
       // Streak insights
-      const currentStreak = profileData.stats?.current_streak || 0;
+      const currentStreak = composite?.stats?.current_streak || 0;
       if (currentStreak === 0) {
         insights.push({
           type: 'streak',
@@ -259,19 +261,6 @@ router.get('/insights',
           message: 'Connect your QIC Health Portal to get personalized recommendations.',
           action: 'Sync data',
           icon: '🏥'
-        });
-      }
-
-      // Mission completion insights
-      const completedMissions = userMissions.filter(um => um.status === 'completed').length;
-      if (completedMissions === 0) {
-        insights.push({
-          type: 'mission',
-          priority: 'high',
-          title: 'Complete Your First Mission',
-          message: 'Start your journey by completing your first mission.',
-          action: 'Browse missions',
-          icon: '🎯'
         });
       }
 
@@ -302,6 +291,7 @@ router.get('/insights',
 // Get AI chat response (for future AI assistant)
 router.post('/chat', 
   authenticateUser,
+  strictRateLimit,
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const { message, context } = req.body;
@@ -315,8 +305,8 @@ router.post('/chat',
       }
 
       // Get user profile for context
-      const userProfile = await db.getUserProfile(userId);
-      const profileData = userProfile?.profile_json || {};
+      const composite = await profileServiceSingleton.getProfile(userId);
+      const profileData = composite?.userProfile?.profile_json || {};
 
       // Mock AI response (replace with real AI service)
       const responses = [
@@ -356,3 +346,9 @@ router.post('/chat',
 );
 
 export default router;
+
+// Factory (DI-friendly) export for future use
+/** @param {{ aiService: typeof aiService }} deps */
+export function createAiRouter(deps) {
+  return router;
+}

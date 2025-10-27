@@ -82,14 +82,15 @@ class MockDatabaseService {
     return this.missions.find(m => m.id === missionId) || null;
   }
 
-  async getUserMissions(sessionId, status = null) {
-    const list = this.user_missions.filter(um => um.session_id === sessionId);
+  async getUserMissions(id, status = null) {
+    const list = this.user_missions.filter(um => um.user_id === id || um.session_id === id);
     return status ? list.filter(um => um.status === status) : list;
   }
 
-  async startMission(sessionId, missionId) {
+  async startMission(id, missionId) {
     this.user_missions.push({
-      session_id: sessionId,
+      user_id: id,
+      session_id: id,
       mission_id: missionId,
       status: 'active',
       started_at: new Date().toISOString(),
@@ -98,8 +99,8 @@ class MockDatabaseService {
     return true;
   }
 
-  async completeMission(sessionId, missionId, completionData = {}) {
-    const item = this.user_missions.find(um => um.session_id === sessionId && um.mission_id === missionId);
+  async completeMission(id, missionId, completionData = {}) {
+    const item = this.user_missions.find(um => (um.user_id === id || um.session_id === id) && um.mission_id === missionId);
     if (!item) return null;
     Object.assign(item, {
       status: 'completed',

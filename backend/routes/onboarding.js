@@ -3,17 +3,19 @@ import { validate } from '../middleware/validation.js';
 import { onboardingSchema } from '../middleware/validation.js';
 import { authenticateUser } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { db } from '../services/supabase.js';
+import { strictRateLimit } from '../middleware/security.js';
 import { aiService } from '../services/ai.service.js';
 import { gamificationService } from '../services/gamification.service.js';
 import { encrypt } from '../utils/encryption.js';
 import { logger } from '../utils/logger.js';
+import { onboardingService as onboardingServiceSingleton } from '../services/onboarding.service.js';
 
 const router = express.Router();
 
 // Submit onboarding data
 router.post('/submit', 
   authenticateUser,
+  strictRateLimit,
   validate(onboardingSchema),
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
@@ -29,16 +31,8 @@ router.post('/submit',
         });
       }
 
-      // Save each step response
-      for (let step = 1; step <= 7; step++) {
-        const stepKey = `step${step}`;
-        if (onboardingData[stepKey]) {
-          await db.saveOnboardingResponse(userId, step, onboardingData[stepKey]);
-        }
-      }
-
-      // Generate AI profile
-      const aiProfile = await aiService.generateAIProfile(onboardingData);
+      // Persist onboarding and build AI profile
+      const { aiProfile } = await onboardingServiceSingleton.saveOnboarding(userId, onboardingData);
 
       // Create user profile with integrations
       const profileData = {
@@ -53,20 +47,19 @@ router.post('/submit',
         onboarding_completed_at: new Date().toISOString()
       };
 
-      // Encrypt sensitive data
+      // Encrypt sensitive data (stored separately)
       const encryptedData = await encrypt(JSON.stringify({
         risk_profile: onboardingData.step1,
         family: onboardingData.step3
       }));
 
-      // Save profile to database
-      await db.createUserProfile(userId, profileData);
-      
-      // Update user profile with encrypted data
-      await db.updateUserProfile(userId, {
-        ...profileData,
-        encrypted_data: encryptedData
-      });
+      // Save via service repo interface
+      if (onboardingServiceSingleton.usersRepo?.updateUserProfile) {
+        await onboardingServiceSingleton.usersRepo.updateUserProfile(userId, {
+          ...profileData,
+          encrypted_data: encryptedData
+        });
+      }
 
       // Award onboarding completion bonus
       const rewards = await gamificationService.processMissionCompletion(userId, 'onboarding-completion', {
@@ -109,7 +102,7 @@ router.get('/progress',
     const userId = req.user.id;
 
     try {
-      const responses = await db.getOnboardingResponses(userId);
+      const responses = await onboardingServiceSingleton.usersRepo.getOnboardingResponses(userId);
       
       const progress = {
         completed_steps: responses.length,
@@ -192,8 +185,7 @@ router.delete('/reset',
     const userId = req.user.id;
 
     try {
-      // Delete onboarding responses
-      // Note: This would need to be implemented in the database service
+      // Delete onboarding responses (not implemented)
       
       logger.info('Onboarding reset', { userId });
 
@@ -214,3 +206,8 @@ router.delete('/reset',
 );
 
 export default router;
+
+// Factory (DI-friendly) export for future use
+export function createOnboardingRouter() {
+  return router;
+}

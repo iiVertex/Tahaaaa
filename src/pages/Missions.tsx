@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { getMissions, startMission, completeMission } from '@/lib/api';
+import MissionCard from '@/components/MissionCard';
+import BottomNav from '@/components/BottomNav';
+import { CardSkeleton } from '@/components/Skeletons';
 
 export default function Missions() {
   const [missions, setMissions] = useState<any[]>([]);
@@ -15,27 +18,16 @@ export default function Missions() {
   }, []);
 
   return (
-    <div>
+    <div style={{ paddingBottom: 64 }}>
       <h2>Missions</h2>
-      {loading && <p>Loading...</p>}
+      {loading && (<div style={{ display: 'grid', gap: 8 }}><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>)}
       {error && <p style={{ color: 'salmon' }}>{error}</p>}
-      <ul style={{ display: 'grid', gap: 12, padding: 0 }}>
+      <div style={{ display: 'grid', gap: 12 }}>
         {missions.map((m) => (
-          <li key={m.id} className="qic-card" style={{ listStyle: 'none', padding: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>
-                <b>{m.title_en || m.title || m.id}</b>
-                <div style={{ opacity: 0.8 }}>{m.description_en || m.description}</div>
-                <div style={{ opacity: 0.7 }}>XP: {m.xp_reward ?? m.xp_reward_min ?? 10}</div>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => startMission(m.id).then(() => alert('Started'))}>Start</button>
-                <button style={{ background: 'var(--qic-accent)', borderColor: 'var(--qic-accent)' }} onClick={() => completeMission(m.id).then(() => alert('Completed'))}>Complete</button>
-              </div>
-            </div>
-          </li>
+          <MissionCard key={m.id} mission={m} onStart={(id)=>startMission(id).then(()=>{})} onComplete={(id)=>completeMission(id).then(()=>{})} />
         ))}
-      </ul>
+      </div>
+      <BottomNav />
     </div>
   );
 }

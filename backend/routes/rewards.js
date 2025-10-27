@@ -1,16 +1,14 @@
 import express from 'express';
 import { authenticateUser } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { db } from '../services/supabase.js';
+import { rewardService as rewardServiceSingleton } from '../services/reward.service.js';
+import { strictRateLimit } from '../middleware/security.js';
 
 const router = express.Router();
 
 // Rewards catalog (mock)
 router.get('/', authenticateUser, asyncHandler(async (req, res) => {
-  const rewards = [
-    { id: 'reward-1', title: 'Fuel Voucher', description: 'Save on fuel', coin_cost: 200, xp_reward: 20, category: 'physical', rarity: 'rare', available: true, stock: 50 },
-    { id: 'reward-2', title: 'Gym Membership Discount', description: 'Stay fit and save', coin_cost: 300, xp_reward: 30, category: 'experiences', rarity: 'epic', available: true, stock: 20 },
-  ];
+  const rewards = await rewardServiceSingleton.listActiveRewards();
   res.json({ success: true, data: { rewards } });
 }));
 
@@ -36,28 +34,22 @@ router.get('/user', authenticateUser, asyncHandler(async (req, res) => {
   res.json({ success: true, data: { rewards } });
 }));
 
-router.post('/redeem', authenticateUser, asyncHandler(async (req, res) => {
+router.post('/redeem', authenticateUser, strictRateLimit, asyncHandler(async (req, res) => {
   const { rewardId } = req.body;
-  const sessionId = req.sessionId;
-  
-  // Deduct coins from user
-  const currentStats = await db.getStats(sessionId);
-  const coins_deducted = 200; // Fixed cost for MVP
-  const updatedStats = await db.upsertStats(sessionId, { 
-    coins: Math.max(currentStats.coins - coins_deducted, 0),
-    xp: currentStats.xp + 20 // Small XP bonus for redeeming
-  });
-  
-  res.status(201).json({ 
-    success: true, 
-    message: 'Reward redeemed', 
-    data: { 
-      reward: { id: rewardId }, 
-      updated_user: updatedStats
-    } 
-  });
+  const userId = req.user.id;
+  const result = await rewardServiceSingleton.redeem(userId, rewardId);
+  if (!result.ok) {
+    return res.status(result.status).json({ success: false, message: result.message });
+  }
+  res.status(201).json({ success: true, message: 'Reward redeemed', data: result.data });
 }));
 
 export default router;
+
+// Factory (DI-friendly) export for future use
+/** @param {{ rewardService: import('../services/reward.service.js').RewardService }} deps */
+export function createRewardsRouter(deps) {
+  return router;
+}
 
 

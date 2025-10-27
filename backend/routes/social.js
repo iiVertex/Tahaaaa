@@ -1,27 +1,19 @@
 import express from 'express';
 import { authenticateUser } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { db } from '../services/supabase.js';
+import { leaderboardService } from '../services/leaderboard.service.js';
 
 const router = express.Router();
 
 // Get friends list (mock from profile or static)
 router.get('/friends', authenticateUser, asyncHandler(async (req, res) => {
-  const friends = [
-    { id: 'friend-1', username: 'layla', level: 6, lifescore: 62, current_streak: 4, avatar_url: '' },
-    { id: 'friend-2', username: 'omar', level: 8, lifescore: 74, current_streak: 9, avatar_url: '' },
-  ];
+  const friends = await leaderboardService.friendsList(req.user.id);
   res.json({ success: true, data: { friends } });
 }));
 
 // Leaderboard (mocked from users)
 router.get('/leaderboard', authenticateUser, asyncHandler(async (req, res) => {
-  const you = await db.getUserById(req.user.id);
-  const leaderboard = [
-    { id: 'u-top1', username: 'amina', level: 12, lifescore: 90, xp: 1200 },
-    { id: 'u-top2', username: 'yusuf', level: 11, lifescore: 87, xp: 1150 },
-    { id: you?.id || 'mock-user-001', username: you?.username || 'you', level: you?.level || 4, lifescore: you?.lifescore || 45, xp: you?.xp || 350 },
-  ];
+  const leaderboard = await leaderboardService.topByLifeScore(10);
   res.json({ success: true, data: { leaderboard } });
 }));
 
@@ -41,5 +33,11 @@ router.post('/invite', authenticateUser, asyncHandler(async (req, res) => {
 }));
 
 export default router;
+
+// Factory (DI-friendly) export for future use
+/** @param {{ leaderboardService: import('../services/leaderboard.service.js').LeaderboardService }} deps */
+export function createSocialRouter(deps) {
+  return router;
+}
 
 

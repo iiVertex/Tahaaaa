@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { getRewards, redeemReward } from '@/lib/api';
+import RewardCard from '@/components/RewardCard';
+import BottomNav from '@/components/BottomNav';
+import { CardSkeleton } from '@/components/Skeletons';
 
 export default function Rewards() {
   const [rewards, setRewards] = useState<any[]>([]);
@@ -15,24 +18,16 @@ export default function Rewards() {
   }, []);
 
   return (
-    <div>
+    <div style={{ paddingBottom: 64 }}>
       <h2>Rewards</h2>
-      {loading && <p>Loading...</p>}
+      {loading && (<div style={{ display: 'grid', gap: 8 }}><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>)}
       {error && <p style={{ color: 'salmon' }}>{error}</p>}
-      <ul style={{ display: 'grid', gap: 12, padding: 0 }}>
+      <div style={{ display: 'grid', gap: 12 }}>
         {rewards.map((r) => (
-          <li key={r.id} className="qic-card" style={{ listStyle: 'none', padding: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>
-                <b>{r.title_en || r.title || r.id}</b>
-                <div style={{ opacity: 0.8 }}>{r.description_en || r.description}</div>
-                <div style={{ opacity: 0.7 }}>Cost: {r.coins_cost ?? 0} coins</div>
-              </div>
-              <button style={{ background: 'var(--qic-accent)', borderColor: 'var(--qic-accent)' }} onClick={() => redeemReward(r.id).then(() => alert('Redeemed'))}>Redeem</button>
-            </div>
-          </li>
+          <RewardCard key={r.id} reward={r} onRedeem={(id)=>redeemReward(id).then(()=>{})} />
         ))}
-      </ul>
+      </div>
+      <BottomNav />
     </div>
   );
 }

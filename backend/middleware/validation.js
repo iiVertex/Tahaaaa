@@ -84,9 +84,16 @@ export const aiRecommendationSchema = Joi.object({
 // Generic validation middleware
 export const validate = (schema) => {
   return (req, res, next) => {
-    const { error, value } = schema.validate(req.body, { 
+    const { error, value } = schema.validate(req.body, {
       abortEarly: false,
-      stripUnknown: true 
+      stripUnknown: true,
+      messages: {
+        'any.required': '{{#label}} is required',
+        'string.base': '{{#label}} must be a string',
+        'string.min': '{{#label}} must be at least {#limit} characters',
+        'any.only': '{{#label}} must be one of {{#valids}}',
+        'number.base': '{{#label}} must be a number'
+      }
     });
 
     if (error) {
@@ -110,9 +117,15 @@ export const validate = (schema) => {
 // Query parameter validation
 export const validateQuery = (schema) => {
   return (req, res, next) => {
-    const { error, value } = schema.validate(req.query, { 
+    const { error, value } = schema.validate(req.query, {
       abortEarly: false,
-      stripUnknown: true 
+      stripUnknown: true,
+      messages: {
+        'any.required': '{{#label}} is required',
+        'string.base': '{{#label}} must be a string',
+        'any.only': '{{#label}} must be one of {{#valids}}',
+        'number.base': '{{#label}} must be a number'
+      }
     });
 
     if (error) {

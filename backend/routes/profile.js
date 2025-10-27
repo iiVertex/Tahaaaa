@@ -2,7 +2,8 @@ import express from 'express';
 import { validate, updateProfileSchema } from '../middleware/validation.js';
 import { authenticateUser } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { db } from '../services/supabase.js';
+import { profileService as profileServiceSingleton } from '../services/profile.service.js';
+import { strictRateLimit } from '../middleware/security.js';
 import { gamificationService } from '../services/gamification.service.js';
 import { decrypt } from '../utils/encryption.js';
 import { logger } from '../utils/logger.js';
@@ -16,23 +17,14 @@ router.get('/',
     const userId = req.user.id;
 
     try {
-      // Get user data
-      const user = await db.getUserById(userId);
-      if (!user) {
+      const composite = await profileServiceSingleton.getProfile(userId);
+      if (!composite?.user) {
         return res.status(404).json({
           success: false,
           message: 'User not found'
         });
       }
-
-      // Get user profile
-      const userProfile = await db.getUserProfile(userId);
-      
-      // Get gamification stats
-      const stats = await gamificationService.getUserStats(userId);
-      
-      // Get achievement suggestions
-      const suggestions = await gamificationService.getAchievementSuggestions(userId);
+      const { user, userProfile, stats, suggestions } = composite;
 
       // Decrypt sensitive data if available
       let decryptedData = null;
@@ -78,6 +70,7 @@ router.get('/',
 // Update user profile
 router.put('/', 
   authenticateUser,
+  strictRateLimit,
   validate(updateProfileSchema),
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
@@ -89,33 +82,14 @@ router.put('/',
       if (updates.username) userUpdates.username = updates.username;
       if (updates.avatar_url) userUpdates.avatar_url = updates.avatar_url;
 
-      if (Object.keys(userUpdates).length > 0) {
-        await db.updateUser(userId, userUpdates);
-      }
-
-      // Update profile data
-      if (updates.preferences || updates.settings) {
-        const currentProfile = await db.getUserProfile(userId);
-        const updatedProfile = {
-          ...currentProfile?.profile_json,
-          ...updates.preferences && { preferences: updates.preferences },
-          ...updates.settings && { settings: updates.settings },
-          updated_at: new Date().toISOString()
-        };
-
-        await db.updateUserProfile(userId, updatedProfile);
-      }
+      const updated = await profileServiceSingleton.updateProfile(userId, updates);
 
       logger.info('User profile updated', {
         userId,
         updates: Object.keys(updates)
       });
 
-      res.json({
-        success: true,
-        message: 'Profile updated successfully',
-        data: updates
-      });
+      res.json({ success: true, message: 'Profile updated successfully', data: updated });
 
     } catch (error) {
       logger.error('Error updating user profile:', error);
@@ -160,12 +134,13 @@ router.get('/stats',
 // Update user preferences
 router.put('/preferences', 
   authenticateUser,
+  strictRateLimit,
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const { preferences } = req.body;
 
     try {
-      const currentProfile = await db.getUserProfile(userId);
+      const currentProfile = (await profileServiceSingleton.getProfile(userId))?.userProfile;
       const updatedProfile = {
         ...currentProfile?.profile_json,
         preferences: {
@@ -202,6 +177,7 @@ router.put('/preferences',
 // Update user settings
 router.put('/settings', 
   authenticateUser,
+  strictRateLimit,
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const { settings } = req.body;
@@ -357,3 +333,8 @@ router.put('/integrations',
 );
 
 export default router;
+
+// Factory (DI-friendly) export for future use
+export function createProfileRouter() {
+  return router;
+}

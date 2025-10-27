@@ -1,11 +1,14 @@
-import { db } from './supabase.js';
 import { logger } from '../utils/logger.js';
+import { LifeScoreEngine } from './lifescore.engine.js';
 
 // Gamification service for XP, LifeScore, and rewards
 export class GamificationService {
-  constructor() {
-    this.xpPerLevel = 100;
-    this.maxLifeScore = 100;
+  // deps.repos: { users }
+  constructor(engine = new LifeScoreEngine(), deps = {}) {
+    this.engine = engine;
+    this.usersRepo = deps.users;
+    this.xpPerLevel = this.engine.xpPerLevel;
+    this.maxLifeScore = this.engine.maxLifeScore;
   }
 
   // Calculate XP required for next level
@@ -35,7 +38,7 @@ export class GamificationService {
   // Award XP and update level
   async awardXP(userId, xpAmount, reason = 'mission_completion') {
     try {
-      const user = await db.getUserById(userId);
+      const user = await (this.usersRepo?.getById?.(userId));
       if (!user) {
         throw new Error('User not found');
       }
@@ -44,7 +47,7 @@ export class GamificationService {
       const newLevel = this.calculateLevelFromXP(newXP);
       const levelUp = newLevel > user.level;
 
-      await db.updateUser(userId, {
+      await this.usersRepo.update(userId, {
         xp: newXP,
         level: newLevel
       });
@@ -74,7 +77,7 @@ export class GamificationService {
   // Update LifeScore
   async updateLifeScore(userId, change, reason = 'mission_completion') {
     try {
-      const user = await db.getUserById(userId);
+      const user = await (this.usersRepo?.getById?.(userId));
       if (!user) {
         throw new Error('User not found');
       }
@@ -84,7 +87,7 @@ export class GamificationService {
         this.maxLifeScore
       );
 
-      await db.updateUser(userId, {
+      await this.usersRepo.update(userId, {
         lifescore: newLifeScore
       });
 
@@ -109,14 +112,14 @@ export class GamificationService {
   // Award coins
   async awardCoins(userId, coinAmount, reason = 'mission_completion') {
     try {
-      const user = await db.getUserById(userId);
+      const user = await (this.usersRepo?.getById?.(userId));
       if (!user) {
         throw new Error('User not found');
       }
 
       const newCoins = Math.max(user.coins + coinAmount, 0);
 
-      await db.updateUser(userId, {
+      await this.usersRepo.update(userId, {
         coins: newCoins
       });
 
@@ -140,7 +143,7 @@ export class GamificationService {
   // Update streak
   async updateStreak(userId, increment = true) {
     try {
-      const user = await db.getUserById(userId);
+      const user = await (this.usersRepo?.getById?.(userId));
       if (!user) {
         throw new Error('User not found');
       }
@@ -151,7 +154,7 @@ export class GamificationService {
       
       const newLongestStreak = Math.max(newStreak, user.longest_streak);
 
-      await db.updateUser(userId, {
+      await this.usersRepo.update(userId, {
         current_streak: newStreak,
         longest_streak: newLongestStreak
       });
@@ -223,13 +226,13 @@ export class GamificationService {
   // Get user gamification stats
   async getUserStats(userId) {
     try {
-      const user = await db.getUserById(userId);
+      const user = await (this.usersRepo?.getById?.(userId));
       if (!user) {
         throw new Error('User not found');
       }
 
-      const xpProgress = this.calculateXPProgress(user.xp, user.level);
-      const lifescorePercentage = Math.round((user.lifescore / this.maxLifeScore) * 100);
+      const xpProgress = this.engine.calculateXPProgress(user.xp, user.level);
+      const lifescorePercentage = this.engine.percentageFromLifeScore(user.lifescore);
 
       return {
         xp: user.xp,
@@ -249,12 +252,7 @@ export class GamificationService {
 
   // Calculate LifeScore status
   getLifeScoreStatus(lifescore) {
-    const percentage = (lifescore / this.maxLifeScore) * 100;
-    
-    if (percentage >= 80) return 'excellent';
-    if (percentage >= 60) return 'high';
-    if (percentage >= 40) return 'medium';
-    return 'low';
+    return this.engine.getLifeScoreStatus(lifescore);
   }
 
   // Get achievement suggestions based on user progress

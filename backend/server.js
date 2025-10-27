@@ -9,14 +9,15 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { logger } from './utils/logger.js';
 
 // Import routes
-import onboardingRoutes from './routes/onboarding.js';
-import missionsRoutes from './routes/missions.js';
-import profileRoutes from './routes/profile.js';
-import aiRoutes from './routes/ai.js';
+import onboardingRoutes, { createOnboardingRouter } from './routes/onboarding.js';
+import missionsRoutes, { createMissionsRouter } from './routes/missions.js';
+import profileRoutes, { createProfileRouter } from './routes/profile.js';
+import aiRoutes, { createAiRouter } from './routes/ai.js';
 import healthRoutes from './routes/health.js';
-import socialRoutes from './routes/social.js';
-import rewardsRoutes from './routes/rewards.js';
-import scenariosRoutes from './routes/scenarios.js';
+import socialRoutes, { createSocialRouter } from './routes/social.js';
+import rewardsRoutes, { createRewardsRouter } from './routes/rewards.js';
+import scenariosRoutes, { createScenariosRouter } from './routes/scenarios.js';
+import { container } from './di/container.js';
 
 // Load environment variables
 dotenv.config();
@@ -47,14 +48,14 @@ app.use((req, res, next) => {
 // Health check route (before auth)
 app.use('/api/health', healthRoutes);
 
-// API routes
-app.use('/api/onboarding', onboardingRoutes);
-app.use('/api/missions', missionsRoutes);
-app.use('/api/profile', profileRoutes);
-app.use('/api/ai', aiRoutes);
-app.use('/api/social', socialRoutes);
-app.use('/api/rewards', rewardsRoutes);
-app.use('/api/scenarios', scenariosRoutes);
+// API routes (use DI factories if available, else fall back to default routers)
+app.use('/api/onboarding', createOnboardingRouter ? createOnboardingRouter(container.services) : onboardingRoutes);
+app.use('/api/missions', createMissionsRouter ? createMissionsRouter(container.services) : missionsRoutes);
+app.use('/api/profile', createProfileRouter ? createProfileRouter(container.services) : profileRoutes);
+app.use('/api/ai', createAiRouter ? createAiRouter(container.services) : aiRoutes);
+app.use('/api/social', createSocialRouter ? createSocialRouter(container.services) : socialRoutes);
+app.use('/api/rewards', createRewardsRouter ? createRewardsRouter(container.services) : rewardsRoutes);
+app.use('/api/scenarios', createScenariosRouter ? createScenariosRouter(container.services) : scenariosRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

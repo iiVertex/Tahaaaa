@@ -1,138 +1,203 @@
-<!-- e11d25b3-d6e9-438a-9894-959dbeb8d4a9 4e7f4a60-dc74-4e74-8c92-ae730ae8c263 -->
-# CORS/CSP and Routing Fix Plan (Blocking MVP)
+<!-- e11d25b3-d6e9-438a-9894-959dbeb8d4a9 40996ab8-a17e-4ca8-b185-c4711fa04474 -->
+# Backend MVP Validation Plan (PowerShell-first)
 
-## What’s broken
+### Scope & Goals
 
-- CORS preflight blocked for origin `http://localhost:8082` (see server logs: "Not allowed by CORS").
-- Environment logs show undefined CORS/ENV, so defaults are used and don’t include 8082.
-- Helmet CSP may restrict `connect-src` for API calls in some contexts.
-- UI still links to `/missions` (warning: "No routes matched location '/missions'") after moving to 3 screens.
+- Validate, end-to-end, that the backend fulfills the Track 1 MVP engagement loop:
 
-## Root cause
+Behavior → AI Insight → Mission → Reward → Improved LifeScore → Cross-sell Opportunity
 
-- `backend/middleware/security.js` only allows 5173, 8080, 8081 by default. Vite dev is running on 8082. Preflight `OPTIONS` fails before adding CORS headers.
-- Helmet CSP is strict by default. In dev it’s safe to relax.
-- BottomNav retains outdated route.
+- Cover every route, security constraint, state transition, and key error path.
+- Produce repeatable, script-driven checks and a concise pass/fail report.
 
-## Targeted fixes
+### Pre-requisites
 
-### 1) Allow dev origins and handle preflight in dev
+- Backend running at `http://localhost:3001` with `backend/.env`:
+  - `NODE_ENV=development`, `PORT=3001`, `CORS_ORIGIN=http://localhost:8082,http://localhost:5173,http://localhost:8080`
+- Frontend not required for backend validation, but can be used to spot UI regressions.
+- PowerShell 5+ (Windows) to run validation scripts.
 
-Edit `backend/middleware/security.js`:
+### Methodology
 
-- Detect dev mode and allow all origins (or read comma-separated `CORS_ORIGIN`).
-- Ensure CORS runs before anything else; allow `OPTIONS` with credentials and needed headers.
+- Primary: PowerShell requests (Invoke-RestMethod) with a generated `x-session-id`.
+- Supplement: curl commands for quick repros; manual negative cases where needed.
+- Artifacts: One JSON summary per run.
 
-Essential diff (concept):
+### Phase 0 — Environment & Security
 
-```diff
- const allowedOrigins = process.env.CORS_ORIGIN 
-   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
--  : ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:8081'];
-+  : ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:8082'];
-+
-+const isDev = process.env.NODE_ENV !== 'production';
-+
- const corsOptions = {
--  origin: function (origin, callback) {
--    if (!origin) return callback(null, true);
--    if (allowedOrigins.indexOf(origin) !== -1) callback(null, true);
--    else callback(new Error('Not allowed by CORS'));
--  },
-+  origin: isDev ? true : function (origin, callback) {
-+    if (!origin) return callback(null, true);
-+    if (allowedOrigins.includes(origin)) return callback(null, true);
-+    callback(new Error('Not allowed by CORS'));
-+  },
-   credentials: true,
-   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-   allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id']
- };
- 
- export const securityMiddleware = [
--  helmet(helmetConfig),
-+  helmet(helmetConfig),
-   cors(corsOptions),
-   limiter
- ];
-+
-+// (in server.js) also add: app.options('*', cors(corsOptions));
+- Verify server boots and logs environment/origin.
+- Validate CORS preflight works (OPTIONS) and dev CSP is relaxed.
+
+PowerShell
+
+```powershell
+$base = 'http://localhost:3001'
+Invoke-RestMethod -Method GET -Uri "$base/api/health"
+Invoke-WebRequest -UseBasicParsing -Method OPTIONS -Uri "$base/api/missions" -Headers @{ 'Origin'='http://localhost:8082'; 'Access-Control-Request-Method'='GET' }
 ```
 
-### 2) Relax Helmet CSP in dev
+Pass if: 200 OK on health; OPTIONS returns 204/200 and includes CORS headers.
 
-In `helmetConfig`, disable CSP in dev or include API origin in `connectSrc`:
+### Phase 1 — Session-based Auth
 
-```diff
--const helmetConfig = { contentSecurityPolicy: { directives: { ...
--  connectSrc: ["'self'", "https://api.supabase.co"],
-+const isDev = process.env.NODE_ENV !== 'production';
-+const helmetConfig = {
-+  contentSecurityPolicy: isDev ? false : {
-+    directives: {
-+      defaultSrc: ["'self'"],
-+      styleSrc: ["'self'", "'unsafe-inline'"],
-+      scriptSrc: ["'self'"],
-+      imgSrc: ["'self'", "data:", "https:"],
-+      connectSrc: ["'self'", "https://api.supabase.co", "http://localhost:3001"],
-+      fontSrc: ["'self'"],
-+      objectSrc: ["'none'"],
-+      mediaSrc: ["'self'"],
-+      frameSrc: ["'none'"],
-+    }
-+  },
-   crossOriginEmbedderPolicy: false
- };
+- Generate session id; all subsequent calls include `'x-session-id'`.
+```powershell
+$sid = [guid]::NewGuid().ToString('N')
+$h = @{ 'x-session-id' = $sid; 'Content-Type' = 'application/json' }
 ```
 
-### 3) Ensure server registers preflight
 
-In `backend/server.js` add after creating `app` and before routes:
+Pass if: Auth-required endpoints return 200 with this header and 401 without it.
 
-```js
-import cors from 'cors';
-import { corsOptions } from './middleware/security.js'; // export it
-app.options('*', cors(corsOptions));
+### Phase 2 — Missions Flow (Core Loop)
+
+1) List missions → 200 + array
+
+2) Start mission → 201/200 + message
+
+3) Complete mission → 200 + rewards object
+
+4) Verify XP/LifeScore/coins/streak increments
+
+```powershell
+$missions = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/missions"
+$mid = $missions.data.missions[0].id
+Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/missions/start" -Body (@{ missionId=$mid }|ConvertTo-Json)
+$complete = Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/missions/complete" -Body (@{ missionId=$mid }|ConvertTo-Json)
+$complete.data.rewards
 ```
 
-### 4) Set dev env overrides
+Pass if: rewards contain `xp>0`, `lifescore>0`, `coins>=0`, with consistent user stats.
 
-Create/update `.env` at root or `backend/.env`:
+### Phase 3 — Rewards Hub
 
+1) List rewards → 200 + active rewards
+
+2) Redeem reward (with sufficient coins) → 201/200
+
+3) Verify coin deduction reflected
+
+```powershell
+$rewards = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/rewards"
+$rid = $rewards.data.rewards[0].id
+$redeem = Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/rewards/redeem" -Body (@{ rewardId=$rid }|ConvertTo-Json)
 ```
-NODE_ENV=development
-CORS_ORIGIN=http://localhost:5173,http://localhost:8080,http://localhost:8081,http://localhost:8082
-PORT=3001
+
+Pass if: `redeem.success` true and user coins decrease accordingly.
+
+### Phase 4 — AI Recommendations
+
+- Get insights + suggested missions
+```powershell
+$ai = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/ai/recommendations"
+$ai.data.insights; $ai.data.suggested_missions
 ```
 
-Restart backend.
 
-### 5) Update BottomNav links
+Pass if: Non-empty arrays; structure stable (title/detail/confidence; id/title/category/xp_reward/...)
 
-- Change any `/missions` link to `/play` in `src/components/BottomNav.tsx` (and anywhere else).
+### Phase 5 — Scenario Simulation
 
-## Validation checklist
+1) Simulate with inputs → returns impact/xp/risk/narrative/suggested_missions
 
-- Open app on 8082; network tab shows 200 for:
-  - GET /api/health, /api/missions, /api/rewards, /api/profile
-  - POST /api/missions/start and /complete pass preflight
-- No more CORS or CSP errors in console.
-- Bottom nav routes work (no warning for `/missions`).
+2) Optionally apply → `?apply=true` starts first suggested mission
 
-## Rollback/Safety
+```powershell
+$payload = @{ walk_minutes=30; diet_quality='good' }|ConvertTo-Json
+$sim = Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/scenarios/simulate" -Body $payload
+$apply = Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/scenarios/simulate?apply=true" -Body $payload
+```
 
-- Dev-only logic is gated by `NODE_ENV !== 'production'`.
-- Production path still enforces explicit allowlist via `CORS_ORIGIN`.
+Pass if: `lifescore_impact>0`, `xp_reward>0`; `apply.data.applied.started` includes 1 mission id.
 
-## Next after green
+### Phase 6 — Profile
 
-- Resume remaining TODOs (AI insights on dashboard, redeem UX, mission toasts, etc.)
+1) GET profile → user, stats, suggestions present
+
+2) PUT profile → update fields and reflect
+
+```powershell
+$profile = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/profile"
+$update = Invoke-RestMethod -Headers $h -Method PUT -Uri "$base/api/profile" -Body (@{ username='hero' }|ConvertTo-Json)
+```
+
+Pass if: `update.success` true and subsequent GET reflects change.
+
+### Phase 7 — Social
+
+- GET friends; GET leaderboard
+```powershell
+$friends = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/social/friends"
+$board = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/social/leaderboard"
+```
+
+
+Pass if: Arrays returned; leaderboards ordered sensibly.
+
+### Phase 8 — Onboarding (DI path)
+
+- POST submit with valid 7-step object (exactly 3 integrations), GET progress
+```powershell
+$onboard = @{ step1=@{risk_tolerance='medium'}; step2=@{exercise_frequency=3;diet_quality='good';daily_routine='moderate'}; step3=@{dependents=1}; step4=@{investment_risk='moderate'}; step5=@{coverage_types=@('health')}; step6=@{integrations=@('QIC Mobile App','QIC Health Portal','QIC Rewards Program')}; step7=@{} } | ConvertTo-Json -Depth 5
+Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/onboarding/submit" -Body $onboard
+Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/onboarding/progress"
+```
+
+
+Pass if: `success=true`, progress shows 7 steps when subsequently completed.
+
+### Phase 9 — Validation & Error Paths
+
+- Missing/invalid bodies for POSTs → 400 with helpful message (Joi)
+- Rate limit exceeded → 429 with message (strict endpoints)
+- Unauthorized without headers → 401/400 as appropriate
+```powershell
+# 400
+Invoke-WebRequest -UseBasicParsing -Method POST -Uri "$base/api/missions/start" -Headers $h -Body (@{}|ConvertTo-Json)
+# 401
+Invoke-WebRequest -UseBasicParsing -Method GET -Uri "$base/api/missions"
+```
+
+
+Pass if: Expected status codes and messages are returned.
+
+### Phase 10 — Performance Smoke
+
+- Ensure P50 latency for core GETs < 150ms locally; POSTs < 300ms.
+- Manual check via repeating Invoke-RestMethod (3x) and timing.
+
+### Phase 11 — Logging & Observability
+
+- Confirm logs on each route include: method, path, sessionId, and key business events (started/completed/awarded).
+- Inspect console/log output after each phase.
+
+### Phase 12 — Supabase Toggle (Optional)
+
+- With `USE_SUPABASE=true` and valid keys, re-run Phases 2–8 to ensure identical contract.
+- Pass if: same responses (minus ids/timestamps) and integrity (FKs) enforced.
+
+### Script Runner (Consolidated)
+
+- Use the existing `scripts/test-api.ps1` as a base; extend to include AI, scenarios apply, onboarding, social, negative tests, and JSON result emission.
+
+Run
+
+```powershell
+powershell -File .\scripts\test-api.ps1 | Out-File .\last-backend-validation.json
+Get-Content .\last-backend-validation.json
+```
+
+### Exit Criteria (All must pass)
+
+- **Security**: CORS preflight passes; dev CSP does not block API; auth works with session id; rate-limited routes enforce 429.
+- **Core Loop**: Missions start/complete updates XP, LifeScore, coins, streak; Rewards redeem adjusts coins; Profile reflects stats; AI insights present; Scenarios simulate and can apply suggested missions.
+- **Stability**: All endpoints respond 2xx with valid bodies; error paths respond with appropriate 4xx/429 and messages.
+- **Observability**: Logs capture key actions and user/session context.
+- **(Optional)** Supabase mode parity.
 
 ### To-dos
 
-- [ ] Allow dev origins (including 8082) and handle preflight in security.js
-- [ ] Relax Helmet CSP in dev or add localhost:3001 to connectSrc
-- [ ] Register app.options('*', cors(corsOptions)) before routes
-- [ ] Set NODE_ENV=development and CORS_ORIGIN with localhost ports
-- [ ] Update BottomNav to use /play instead of /missions
-- [ ] Verify all core endpoints succeed from 8082 without CORS/CSP errors
+- [ ] Extend scripts/test-api.ps1 to cover AI, scenarios apply, onboarding, negative tests
+- [ ] Emit consolidated JSON summary to last-backend-validation.json
+- [ ] Add basic latency timing and thresholds to script output
+- [ ] Add optional SUPABASE mode test block with USE_SUPABASE=true

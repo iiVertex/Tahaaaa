@@ -18,6 +18,7 @@ import healthRoutes from './routes/health.js';
 import socialRoutes, { createSocialRouter } from './routes/social.js';
 import rewardsRoutes, { createRewardsRouter } from './routes/rewards.js';
 import scenariosRoutes, { createScenariosRouter } from './routes/scenarios.js';
+import personalizationRoutes, { createPersonalizationRouter } from './routes/personalization.js';
 import { container } from './di/container.js';
 
 // Load environment variables
@@ -59,6 +60,7 @@ app.use('/api/ai', createAiRouter ? createAiRouter(container.services) : aiRoute
 app.use('/api/social', createSocialRouter ? createSocialRouter(container.services) : socialRoutes);
 app.use('/api/rewards', createRewardsRouter ? createRewardsRouter(container.services) : rewardsRoutes);
 app.use('/api/scenarios', createScenariosRouter ? createScenariosRouter(container.services) : scenariosRoutes);
+app.use('/api/personalization', createPersonalizationRouter ? createPersonalizationRouter(container.services) : personalizationRoutes);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);

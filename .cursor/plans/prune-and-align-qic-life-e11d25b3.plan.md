@@ -1,84 +1,53 @@
-<!-- e11d25b3-d6e9-438a-9894-959dbeb8d4a9 385d53cf-0f1e-4c3a-9e06-2cf5d1768932 -->
-# Frontend (React 18 + TS + Vite) – Eisenhower Implementation
+<!-- e11d25b3-d6e9-438a-9894-959dbeb8d4a9 4e695514-877a-4895-aa5f-78c037914e89 -->
+# Fix duplicate exports in src/lib/api.ts
 
-### Eisenhower Priorities (Do First → Do Next → Schedule → Optional)
-- Do First (Important/Urgent):
-  - UI foundations (Tailwind, shadcn/ui, Radix). Mobile layout + bottom nav.
-  - LifeScore Dashboard (visible growth, streaks, coins, tips).
-  - Missions (list/detail, start/complete, progress, toasts).
-  - Scenario Simulation (form, prediction, suggested missions integration).
-- Do Next (Important/Not Urgent):
-  - Rewards Hub (Temu-like cards, cart-less redeem flow, coin checks).
-  - API client with schemas + type guards (zod) and runtime validation.
-  - Error boundary + global toasts; loading skeletons.
-- Schedule (Not Urgent/Important):
-  - Bilingual i18n (EN/AR), RTL support, content JSONs.
-  - Accessibility sweep (focus states, roles, keyboard nav), dark mode.
-- Optional (Not Important/Not Urgent for demo):
-  - Leaderboard (mini widget + full list screen).
-  - Pull-to-refresh, micro-animations (shadcn/ui + Tailwind transitions).
+We will resolve the build errors by keeping the validated, consolidated implementations and removing accidental duplicate exports appended at the bottom of the file.
 
-### Architecture & Foundations
-- Keep existing Vite app; add Tailwind (postcss, config) and shadcn/ui with Radix primitives.
-- Theme: QIC palette via Tailwind theme extension; map to CSS vars if present.
-- Design tokens: spacing, font sizes, radii unified via Tailwind.
-- Component library: shadcn/ui (Button, Card, Tabs, Toast, Dialog, Sheet, NavigationMenu, Progress, Skeleton, Badge).
+## Changes
+- Remove the second duplicated blocks for these functions:
+  - `getRewards`, `redeemReward`
+  - `getSocialFeed`
+  - `getProfile`, `updateProfile`
+- Keep the earlier versions that use `request(...)` and zod schemas.
 
-### Data & Types
-- API client (`src/lib/api.ts`): Keep axios instance; add zod schemas and type guards per endpoint (missions, scenarios, rewards, profile, ai).
-- Narrowers: `isMission`, `isScenarioPrediction`, `isReward` fallback to safe defaults.
-- Error handling: Centralized `request` wrapper with zod validation + typed errors.
+## Target file
+- `src/lib/api.ts`
 
-### Screens/Flows (Mobile-first)
-- LifeScore Dashboard (`/`): lifeScore ring/progress, XP/level, streak, coins; “Next best action”; recent missions; insights.
-- Missions (`/missions`): filter tabs, mission cards, start/complete; mission detail bottom-sheet; progress indicators.
-- Scenarios (`/showcase`): inputs (walk, diet, commute); simulate; display prediction + suggested missions; start/complete directly.
-- Rewards (`/rewards`): category tabs, coin-gated cards, redeem confirm dialog; success toast; balance updates.
-- Leaderboard (optional `/social`): mini widget on dashboard + full list.
-- Navigation: bottom tab bar (Home, Missions, Rewards, Profile), floating CTA for “Simulate”.
+## Edit (remove these duplicate sections)
+Delete the duplicate export blocks starting from the second "// Rewards" section downwards:
 
-### i18n, RTL, A11y
-- i18next + resources: `en.json`, `ar.json`; language toggle in Profile; `dir=rtl` for Arabic; logical props & Tailwind `rtl:` variants.
-- A11y: Radix primitives; labels, aria-live toasts, focus-visible, color contrast.
+```startLine:endLine:src/lib/api.ts
+70:136:// Rewards
+72:79:export async function getRewards() {
+74:76:  const { data } = await api.get('/rewards');
+76:77:  return data?.data?.rewards || data?.data || data;
+80:86:export async function redeemReward(id: string) {
+82:84:  const { data } = await api.post('/rewards/redeem', { rewardId: id });
+84:85:  return data;
+90:110:// Social
+95:109:export async function getSocialFeed() {
+99:105:  const [friends, leaderboard] = await Promise.all([
+101:103:    api.get('/social/friends'),
+103:104:    api.get('/social/leaderboard'),
+105:107:  ]);
+107:108:  return { friends: friends.data?.data?.friends || [], leaderboard: leaderboard.data?.data?.leaderboard || [] };
+113:129:// Profile
+115:121:export async function getProfile() {
+117:119:  const { data } = await api.get('/profile');
+119:120:  return data?.data || data;
+123:129:export async function updateProfile(payload: any) {
+125:127:  const { data } = await api.put('/profile', payload);
+127:128:  return data;
+```
 
-### Quality Gates
-- Typecheck (`tsc --noEmit`), ESLint (basic), zod validation on all API responses, error boundary, loading skeletons.
+After deletion, the file should end at the first set of `updateProfile` (line ~65) with no further duplicates.
 
-### Files (Essential)
-- tailwind.config.{ts,js}, postcss.config.js, src/index.css (Tailwind base).
-- shadcn/ui init (config file) and generated components under `src/components/ui/`.
-- src/components/: `BottomNav.tsx`, `LifeScoreRing.tsx`, `MissionCard.tsx`, `RewardCard.tsx`, `ScenarioForm.tsx`, `ToastHost.tsx`, `Skeletons.tsx`.
-- src/lib/: `schemas.ts` (zod), `i18n.ts`, `rtl.ts`, `requests.ts` (axios wrapper with validation).
-- src/locales/: `en.json`, `ar.json`.
-- src/pages/: refactor existing to use components; add `Dashboard.tsx` (or reuse Health page) as lifeScore dashboard.
-
-### Integration Steps (High-level)
-1) Install Tailwind + shadcn/ui + Radix; configure theme and base styles.
-2) Introduce `requests.ts` wrapper with zod schemas for all API responses.
-3) Build BottomNav and mobile layouts; refactor routes to nested layout.
-4) Implement Dashboard (lifeScore, insights, recent missions).
-5) Implement Missions page (cards + detail sheet + actions).
-6) Implement Scenarios (form + prediction + suggested missions, start/complete).
-7) Implement Rewards (cards + redeem dialog + coin checks).
-8) Optional Leaderboard widget + page.
-9) i18n + RTL; content keys applied across components; language toggle.
-10) A11y pass + skeletons + toasts; polish.
-
-### Notes
-- Keep all flows “visible growth”: progress rings/badges, streak flames, coins pop.
-- Keep simple emotional language in en/ar JSON.
-- Maintain existing API shapes; add client-side guards only.
+## Verify
+- Run `npm run dev` and confirm Vite starts without duplicate export errors.
+- Smoke test affected calls (Rewards, Social, Profile) in the UI.
 
 
 ### To-dos
 
-- [ ] Install Tailwind, shadcn/ui, Radix; configure theme and base styles
-- [ ] Add zod schemas and axios request wrapper with runtime validation
-- [ ] Create BottomNav and mobile layout; refactor routes to use it
-- [ ] Build LifeScore Dashboard with insights and recent missions
-- [ ] Implement missions list, detail sheet, start/complete actions
-- [ ] Implement scenario form + prediction + suggested missions actions
-- [ ] Implement rewards hub with redeem confirmation and coin checks
-- [ ] Add leaderboard widget and page (optional)
-- [ ] Add i18next with EN/AR, RTL support, language toggle
-- [ ] Add toasts, skeletons, focus-visible, contrast checks
+- [ ] Delete duplicate exports in src/lib/api.ts to resolve build errors
+- [ ] Run dev build and verify no duplicate export errors

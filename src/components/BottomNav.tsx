@@ -20,12 +20,11 @@ export default function BottomNav() {
     <nav style={{
       position: 'fixed', bottom: 0, left: 0, right: 0,
       background: 'var(--qic-bg)', borderTop: '1px solid var(--qic-border)',
-      padding: 12, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)'
+      padding: 12, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)'
     }}>
       <Item to="/" icon={<Home size={20} />} label="Home" />
       <Item to="/play" icon={<Target size={20} />} label="Missions" />
       <Item to="/rewards" icon={<Gift size={20} />} label="Rewards" />
-      <Item to="/profile" icon={<User size={20} />} label="Profile" />
     </nav>
   );
 }

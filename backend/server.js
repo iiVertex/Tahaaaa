@@ -29,10 +29,10 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Preflight for all routes (CORS) - must be before other middleware
+app.options('*', cors(corsOptions));
 // Security middleware
 app.use(securityMiddleware);
-// Preflight for all routes (CORS)
-app.options('*', cors(corsOptions));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

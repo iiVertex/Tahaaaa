@@ -104,11 +104,16 @@ export function createOnboardingRouter(deps) {
 
       try {
         const responses = await onboardingService.usersRepo.getOnboardingResponses(userId);
-        
+        const profile = await onboardingService.usersRepo.getUserProfile?.(userId);
+        const profileCompleted = !!(profile?.profile_json?.onboarding_completed);
+
+        const baseCompleted = responses.length === 7;
+        const isComplete = baseCompleted || profileCompleted;
+
         const progress = {
-          completed_steps: responses.length,
+          completed_steps: isComplete ? 7 : responses.length,
           total_steps: 7,
-          is_complete: responses.length === 7,
+          is_complete: isComplete,
           responses: responses.map(r => ({
             step: r.step_number,
             data: r.response_data,

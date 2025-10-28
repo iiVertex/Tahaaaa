@@ -295,61 +295,62 @@ export function createAiRouter(deps) {
   })
 );
 
-// Get AI chat response (for future AI assistant)
-router.post('/chat', 
-  authenticateUser,
-  strictRateLimit,
-  asyncHandler(async (req, res) => {
-    const userId = req.user.id;
-    const { message, context } = req.body;
+  // Get AI chat response (for future AI assistant)
+  router.post('/chat', 
+    authenticateUser,
+    strictRateLimit,
+    asyncHandler(async (req, res) => {
+      const userId = req.user.id;
+      const { message, context } = req.body;
 
-    try {
-      if (!message) {
-        return res.status(400).json({
+      try {
+        if (!message) {
+          return res.status(400).json({
+            success: false,
+            message: 'Message is required'
+          });
+        }
+
+        // Get user profile for context via DI service
+        const composite = await profileService.getProfile(userId);
+        const profileData = composite?.userProfile?.profile_json || {};
+
+        // Mock AI response (replace with real AI service)
+        const responses = [
+          "I can help you find the perfect mission to boost your LifeScore!",
+          "Based on your profile, I recommend focusing on health missions.",
+          "Great job on completing your recent missions! Keep it up!",
+          "Your streak is looking good! Don't forget to complete a mission today.",
+          "I notice you haven't synced your health data yet. Would you like help with that?"
+        ];
+
+        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+
+        logger.info('AI chat response generated', {
+          userId,
+          messageLength: message.length,
+          context
+        });
+
+        res.json({
+          success: true,
+          data: {
+            response: randomResponse,
+            timestamp: new Date().toISOString(),
+            context,
+            profile_used: Object.keys(profileData).length
+          }
+        });
+
+      } catch (error) {
+        logger.error('Error getting AI chat response:', error);
+        res.status(500).json({
           success: false,
-          message: 'Message is required'
+          message: 'Failed to get AI response',
+          error: error.message
         });
       }
-
-      // Get user profile for context
-      const composite = await profileServiceSingleton.getProfile(userId);
-      const profileData = composite?.userProfile?.profile_json || {};
-
-      // Mock AI response (replace with real AI service)
-      const responses = [
-        "I can help you find the perfect mission to boost your LifeScore!",
-        "Based on your profile, I recommend focusing on health missions.",
-        "Great job on completing your recent missions! Keep it up!",
-        "Your streak is looking good! Don't forget to complete a mission today.",
-        "I notice you haven't synced your health data yet. Would you like help with that?"
-      ];
-
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-
-      logger.info('AI chat response generated', {
-        userId,
-        messageLength: message.length,
-        context
-      });
-
-      res.json({
-        success: true,
-        data: {
-          response: randomResponse,
-          timestamp: new Date().toISOString(),
-          context
-        }
-      });
-
-    } catch (error) {
-      logger.error('Error getting AI chat response:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to get AI response',
-        error: error.message
-      });
-    }
-  }))
+    }))
 
   return router;
 }

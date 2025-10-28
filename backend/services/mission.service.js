@@ -50,6 +50,7 @@ export class MissionService {
   }
 }
 
-export const missionService = new MissionService();
+// DI-provided singleton is created in container; avoid creating an un-wired instance here
+export const missionService = undefined;
 
 

@@ -27,6 +27,7 @@ export class OnboardingService {
   }
 }
 
-export const onboardingService = new OnboardingService();
+// DI-provided singleton is created in container; avoid creating an un-wired instance here
+export const onboardingService = undefined;
 
 

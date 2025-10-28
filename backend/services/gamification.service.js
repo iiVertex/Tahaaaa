@@ -302,5 +302,5 @@ export class GamificationService {
   }
 }
 
-// Export singleton instance
-export const gamificationService = new GamificationService();
+// DI-provided singleton is created in container; avoid creating an un-wired instance here
+export const gamificationService = undefined;

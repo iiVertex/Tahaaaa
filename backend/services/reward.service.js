@@ -37,6 +37,7 @@ export class RewardService {
   }
 }
 
-export const rewardService = new RewardService();
+// DI-provided singleton is created in container; avoid creating an un-wired instance here
+export const rewardService = undefined;
 
 

@@ -37,6 +37,7 @@ export class ProfileService {
   }
 }
 
-export const profileService = new ProfileService();
+// DI-provided singleton is created in container; avoid creating an un-wired instance here
+export const profileService = undefined;
 
 

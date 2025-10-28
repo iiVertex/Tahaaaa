@@ -49,6 +49,7 @@ export class ScenarioService {
   }
 }
 
-export const scenarioService = new ScenarioService();
+// DI-provided singleton is created in container; avoid creating an un-wired instance here
+export const scenarioService = undefined;
 
 

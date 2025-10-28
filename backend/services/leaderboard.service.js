@@ -18,6 +18,7 @@ export class LeaderboardService {
   }
 }
 
-export const leaderboardService = new LeaderboardService();
+// DI-provided singleton is created in container; avoid creating an un-wired instance here
+export const leaderboardService = undefined;
 
 

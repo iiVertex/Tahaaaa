@@ -2,15 +2,22 @@ import express from 'express';
 import { validate, aiRecommendationSchema } from '../middleware/validation.js';
 import { authenticateUser } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { aiService } from '../services/ai.service.js';
+// Use DI-injected ai service via factory
 import { strictRateLimit } from '../middleware/security.js';
-import { profileService as profileServiceSingleton } from '../services/profile.service.js';
+// Use DI-injected profile service via factory
 import { logger } from '../utils/logger.js';
 
-const router = express.Router();
+// Router will be created inside factory to capture DI deps
 
 // Get AI recommendations
-router.get('/recommendations', 
+// Factory router
+/** @param {{ ai: any, profile: import('../services/profile.service.js').ProfileService }} deps */
+export function createAiRouter(deps) {
+  const router = express.Router();
+  const aiService = deps?.ai;
+  const profileService = deps?.profile;
+
+  router.get('/recommendations', 
   authenticateUser,
   strictRateLimit,
   asyncHandler(async (req, res) => {
@@ -19,7 +26,7 @@ router.get('/recommendations',
 
     try {
       // Get user profile for personalized recommendations
-      const composite = await profileServiceSingleton.getProfile(userId);
+      const composite = await profileService.getProfile(userId);
       const profileData = composite?.userProfile?.profile_json || {};
 
       // Get AI outputs: insights + suggested missions
@@ -53,11 +60,11 @@ router.get('/recommendations',
         error: error.message
       });
     }
-  })
-);
+  }))
+
 
 // Get AI recommendations with context
-router.post('/recommendations', 
+  router.post('/recommendations', 
   authenticateUser,
   strictRateLimit,
   validate(aiRecommendationSchema),
@@ -67,7 +74,7 @@ router.post('/recommendations',
 
     try {
       // Get user profile
-      const composite = await profileServiceSingleton.getProfile(userId);
+      const composite = await profileService.getProfile(userId);
       const profileData = composite?.userProfile?.profile_json || {};
 
       // Add context to profile for more personalized recommendations
@@ -106,11 +113,11 @@ router.post('/recommendations',
         error: error.message
       });
     }
-  })
-);
+  }))
+
 
 // Generate AI profile
-router.post('/profile', 
+  router.post('/profile', 
   authenticateUser,
   strictRateLimit,
   asyncHandler(async (req, res) => {
@@ -149,11 +156,11 @@ router.post('/profile',
         error: error.message
       });
     }
-  })
-);
+  }))
+
 
 // Simulate scenario
-router.post('/scenarios/simulate', 
+  router.post('/scenarios/simulate', 
   authenticateUser,
   strictRateLimit,
   asyncHandler(async (req, res) => {
@@ -169,7 +176,7 @@ router.post('/scenarios/simulate',
       }
 
       // Get user profile for context
-      const composite = await profileServiceSingleton.getProfile(userId);
+      const composite = await profileService.getProfile(userId);
       const profileData = composite?.userProfile?.profile_json || {};
 
       // Add user context to scenario inputs
@@ -204,18 +211,18 @@ router.post('/scenarios/simulate',
         error: error.message
       });
     }
-  })
-);
+  }))
+
 
 // Get AI insights for dashboard
-router.get('/insights', 
+  router.get('/insights', 
   authenticateUser,
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
 
     try {
       // Get user profile and stats
-      const composite = await profileServiceSingleton.getProfile(userId);
+      const composite = await profileService.getProfile(userId);
       const profileData = composite?.userProfile?.profile_json || {};
 
       // Get user's recent activity (placeholder for now)
@@ -342,13 +349,9 @@ router.post('/chat',
         error: error.message
       });
     }
-  })
-);
+  }))
 
-export default router;
-
-// Factory (DI-friendly) export for future use
-/** @param {{ aiService: typeof aiService }} deps */
-export function createAiRouter(deps) {
   return router;
 }
+
+export default createAiRouter;

@@ -3,15 +3,14 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 
 // CORS configuration
+const isDev = process.env.NODE_ENV !== 'production';
 const allowedOrigins = process.env.CORS_ORIGIN 
   ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-  : ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:8081'];
+  : ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:8082'];
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
+export const corsOptions = {
+  origin: isDev ? true : function (origin, callback) {
     if (!origin) return callback(null, true);
-    
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -38,13 +37,13 @@ const limiter = rateLimit({
 
 // Helmet configuration for security headers
 const helmetConfig = {
-  contentSecurityPolicy: {
+  contentSecurityPolicy: isDev ? false : {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://api.supabase.co"],
+      connectSrc: ["'self'", "https://api.supabase.co", "http://localhost:3001"],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],

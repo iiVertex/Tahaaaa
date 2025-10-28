@@ -23,7 +23,7 @@ export default function BottomNav() {
       padding: 12, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)'
     }}>
       <Item to="/" icon={<Home size={20} />} label="Home" />
-      <Item to="/missions" icon={<Target size={20} />} label="Missions" />
+      <Item to="/play" icon={<Target size={20} />} label="Missions" />
       <Item to="/rewards" icon={<Gift size={20} />} label="Rewards" />
       <Item to="/profile" icon={<User size={20} />} label="Profile" />
     </nav>

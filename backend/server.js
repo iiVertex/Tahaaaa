@@ -4,7 +4,8 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
 // Import middleware
-import { securityMiddleware } from './middleware/security.js';
+import cors from 'cors';
+import { securityMiddleware, corsOptions } from './middleware/security.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { logger } from './utils/logger.js';
 
@@ -30,6 +31,8 @@ const PORT = process.env.PORT || 3001;
 
 // Security middleware
 app.use(securityMiddleware);
+// Preflight for all routes (CORS)
+app.options('*', cors(corsOptions));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

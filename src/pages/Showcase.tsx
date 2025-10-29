@@ -1,8 +1,12 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { simulateScenario, getProfile, startMission, completeMission, getRecommendations } from '../lib/api';
+import ScenarioForm from '@/components/ScenarioForm';
+import MajlisLayout from '@/components/MajlisLayout';
+import { DatePalmIcon } from '@/components/QatarAssets';
 
 export default function Showcase() {
-  const [inputs, setInputs] = React.useState({ walk_minutes: 30, diet_quality: 'good', commute_distance: 10, seatbelt_usage: 'always' });
+  const { t } = useTranslation();
   const [loading, setLoading] = React.useState(false);
   const [result, setResult] = React.useState<any>(null);
   const [profile, setProfile] = React.useState<any>(null);
@@ -20,17 +24,17 @@ export default function Showcase() {
       .catch(() => {});
   }, []);
 
-  async function onSimulate(e: React.FormEvent) {
-    e.preventDefault();
+  async function onSimulate(values: any) {
     setLoading(true); setError(null);
     try {
-      const { data } = await simulateScenario(inputs);
-      setResult(data);
+      const response = await simulateScenario(values);
+      const prediction = response?.data || response;
+      setResult(prediction);
       const updated = await getProfile();
       setProfile(updated);
-      setMessage('Simulation complete');
+      setMessage(t('showcase.simulationComplete'));
     } catch (err: any) {
-      setError(err?.message || 'Failed to simulate');
+      setError(t('errors.simulateScenario', { message: err?.message || '' }));
     } finally { setLoading(false); }
   }
 
@@ -40,8 +44,8 @@ export default function Showcase() {
       await startMission(id);
       const updated = await getProfile();
       setProfile(updated);
-      setMessage('Mission started');
-    } catch (err: any) { setError(err?.message || 'Failed to start mission'); }
+      setMessage(t('showcase.missionStarted'));
+    } catch (err: any) { setError(t('errors.startMission', { message: err?.message || '' })); }
     finally { setLoading(false); }
   }
 
@@ -51,65 +55,35 @@ export default function Showcase() {
       await completeMission(id);
       const updated = await getProfile();
       setProfile(updated);
-      setMessage('Mission completed');
-    } catch (err: any) { setError(err?.message || 'Failed to complete mission'); }
+      setMessage(t('showcase.missionCompleted'));
+    } catch (err: any) { setError(t('errors.completeMission', { message: err?.message || '' })); }
     finally { setLoading(false); }
   }
 
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
-      <h2>AI Showcase</h2>
+    <MajlisLayout titleKey="showcase.title" icon={<DatePalmIcon size={18} color="var(--qic-secondary)" />}>
       {error && <div style={{ color: 'salmon' }}>{error}</div>}
       {message && <div style={{ color: 'seagreen' }}>{message}</div>}
-      <form onSubmit={onSimulate} style={{ display: 'grid', gap: 8 }}>
-        <label>
-          Walk Minutes
-          <input type="number" value={inputs.walk_minutes}
-                 onChange={e => setInputs({ ...inputs, walk_minutes: Number(e.target.value) })} />
-        </label>
-        <label>
-          Diet Quality
-          <select value={inputs.diet_quality} onChange={e => setInputs({ ...inputs, diet_quality: e.target.value })}>
-            <option value="excellent">excellent</option>
-            <option value="good">good</option>
-            <option value="fair">fair</option>
-            <option value="poor">poor</option>
-          </select>
-        </label>
-        <label>
-          Commute Distance (km)
-          <input type="number" value={inputs.commute_distance}
-                 onChange={e => setInputs({ ...inputs, commute_distance: Number(e.target.value) })} />
-        </label>
-        <label>
-          Seatbelt Usage
-          <select value={inputs.seatbelt_usage} onChange={e => setInputs({ ...inputs, seatbelt_usage: e.target.value })}>
-            <option value="always">always</option>
-            <option value="often">often</option>
-            <option value="rarely">rarely</option>
-          </select>
-        </label>
-        <button type="submit" disabled={loading}>Simulate</button>
-      </form>
+      <ScenarioForm onSubmit={onSimulate} loading={loading} />
 
       {result && (
         <div className="qic-card" style={{ padding: 16 }}>
-          <h3>Prediction</h3>
+          <h3>{t('showcase.prediction')}</h3>
           <p>{result.narrative}</p>
-          <p>Risk: <b>{result.risk_level}</b></p>
-          <p>Preview: LifeScore +{result.lifescore_impact}, XP +{result.xp_reward}</p>
-          <h4>Suggested Missions</h4>
+          <p>{t('showcase.risk', { level: result.risk_level })}</p>
+          <p>{t('showcase.preview', { lifescore: result.lifescore_impact, xp: result.xp_reward })}</p>
+          <h4>{t('missions.suggested')}</h4>
           <div style={{ display: 'grid', gap: 8 }}>
             {result.suggested_missions?.map((m: any) => (
               <div key={m.id} className="qic-card" style={{ padding: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div><b>{m.title}</b> · {m.category} · {m.difficulty}</div>
-                    <div>XP +{m.xp_reward}, LifeScore +{m.lifescore_impact}</div>
+                    <div>{t('showcase.rewardSummary', { xp: m.xp_reward, lifescore: m.lifescore_impact })}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => onStartMission(m.id)} disabled={loading}>Start</button>
-                    <button onClick={() => onCompleteMission(m.id)} disabled={loading}>Complete</button>
+                    <button onClick={() => onStartMission(m.id)} disabled={loading}>{t('start')}</button>
+                    <button onClick={() => onCompleteMission(m.id)} disabled={loading}>{t('complete')}</button>
                   </div>
                 </div>
               </div>
@@ -120,24 +94,27 @@ export default function Showcase() {
 
       {recommendations && (
         <div className="qic-card" style={{ padding: 16 }}>
-          <h3>AI Insights</h3>
+          <h3>{t('ai.insights')}</h3>
           <ul style={{ paddingLeft: 16 }}>
             {recommendations.insights?.map((i: any, idx: number) => (
-              <li key={idx}><b>{i.title}</b>: {i.detail} <span style={{ opacity: 0.7 }}>(conf {Math.round((i.confidence||0)*100)}%)</span></li>
+              <li key={idx}>
+                <b>{i.title}</b>: {i.detail}
+                <span style={{ opacity: 0.7 }}> {t('showcase.confidence', { percent: Math.round((i.confidence || 0) * 100) })}</span>
+              </li>
             ))}
           </ul>
-          <h4>Adaptive Missions</h4>
+          <h4>{t('showcase.adaptive')}</h4>
           <div style={{ display: 'grid', gap: 8 }}>
             {recommendations.suggested_missions?.map((m: any) => (
               <div key={m.id} className="qic-card" style={{ padding: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div><b>{m.title}</b> · {m.category} · {m.difficulty}</div>
-                    <div>XP +{m.xp_reward}, LifeScore +{m.lifescore_impact}</div>
+                    <div>{t('showcase.rewardSummary', { xp: m.xp_reward, lifescore: m.lifescore_impact })}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => onStartMission(m.id)} disabled={loading}>Start</button>
-                    <button onClick={() => onCompleteMission(m.id)} disabled={loading}>Complete</button>
+                    <button onClick={() => onStartMission(m.id)} disabled={loading}>{t('start')}</button>
+                    <button onClick={() => onCompleteMission(m.id)} disabled={loading}>{t('complete')}</button>
                   </div>
                 </div>
               </div>
@@ -148,26 +125,26 @@ export default function Showcase() {
 
       {profile && (
         <div className="qic-card" style={{ padding: 16 }}>
-          <h3>Your Status</h3>
-          <div>LifeScore: <b>{profile?.stats?.lifescore ?? profile?.user?.lifescore ?? 0}</b></div>
-          <div>XP: <b>{profile?.stats?.xp ?? profile?.user?.xp ?? 0}</b></div>
-          <div>Level: <b>{profile?.stats?.level ?? profile?.user?.level ?? 1}</b></div>
+          <h3>{t('showcase.status')}</h3>
+          <div>{t('stats.lifescore') || 'LifeScore'}: <b>{profile?.stats?.lifescore ?? profile?.user?.lifescore ?? 0}</b></div>
+          <div>{t('stats.xp')}: <b>{profile?.stats?.xp ?? profile?.user?.xp ?? 0}</b></div>
+          <div>{t('stats.level')}: <b>{profile?.stats?.level ?? profile?.user?.level ?? 1}</b></div>
         </div>
       )}
 
       {!!leaderboard.length && (
         <div className="qic-card" style={{ padding: 16 }}>
-          <h3>Leaderboard</h3>
+          <h3>{t('showcase.leaderboard')}</h3>
           <ol style={{ paddingLeft: 16 }}>
             {leaderboard.map((u: any) => (
               <li key={u.id}>
-                <b>{u.username || u.id}</b> — LifeScore {u.lifescore}, XP {u.xp}
+                <b>{u.username || u.id}</b> — {t('showcase.leaderboardEntry', { lifescore: u.lifescore, xp: u.xp })}
               </li>
             ))}
           </ol>
         </div>
       )}
-    </div>
+    </MajlisLayout>
   );
 }
 

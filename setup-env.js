@@ -36,9 +36,19 @@ VITE_LOVABLE_API_KEY=
 VITE_LOVABLE_API_ENDPOINT=https://api.lovable.dev/v1/
 
 # ============================================================================
+# AI INTEGRATION (OpenAI GPT-5 Nano)
+# ============================================================================
+AI_PROVIDER=openai
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5-nano
+OPENAI_MAX_TOKENS=1000
+OPENAI_TEMPERATURE=0.7
+
+# ============================================================================
 # ALTERNATIVE AI PROVIDERS
 # ============================================================================
 VITE_OPENAI_API_KEY=
+VITE_OPENAI_MODEL=gpt-5-nano
 VITE_ANTHROPIC_API_KEY=
 
 # ============================================================================

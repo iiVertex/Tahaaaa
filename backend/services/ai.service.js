@@ -2,35 +2,108 @@ import axios from 'axios';
 import { logger } from '../utils/logger.js';
 import { config } from '../config/index.js';
 
+let OpenAIClient = null;
+try {
+  const module = await import('openai');
+  OpenAIClient = module.default || module.OpenAI || null;
+} catch (_) {
+  OpenAIClient = null;
+}
+
 // Lovable.dev AI service (mocked initially)
 class AIService {
   constructor() {
+    this.provider = (process.env.AI_PROVIDER || config.aiProvider || 'local').toLowerCase();
+    // OpenAI settings
+    this.openaiApiKey = process.env.OPENAI_API_KEY;
+    this.openaiModel = process.env.OPENAI_MODEL || 'gpt-5-nano';
+    this.openaiTemperature = Number(process.env.OPENAI_TEMPERATURE ?? 0.7);
+    this.openaiMaxTokens = Number(process.env.OPENAI_MAX_TOKENS ?? 600);
+    // Legacy Lovable placeholders (fallback if provider chosen differently)
     this.apiKey = process.env.LOVABLE_API_KEY;
-    this.baseURL = 'https://api.lovable.dev'; // Placeholder URL
-    this.provider = config.aiProvider || 'local';
-    this.isMockMode = this.provider === 'local' || !this.apiKey || process.env.NODE_ENV === 'development';
+    this.baseURL = 'https://api.lovable.dev';
+    this.isMockMode = this.provider === 'local' || (this.provider === 'openai' && !this.openaiApiKey);
+
+    if (this.provider === 'openai' && this.openaiApiKey && OpenAIClient) {
+      this.openai = new OpenAIClient({ apiKey: this.openaiApiKey });
+    } else {
+      this.openai = null;
+    }
+  }
+
+  async sendOpenAiPrompt(prompt, { maxTokens, temperature } = {}) {
+    if (!this.openai) return null;
+    try {
+      const response = await this.openai.responses.create({
+        model: this.openaiModel,
+        input: prompt,
+        temperature: typeof temperature === 'number' ? temperature : this.openaiTemperature,
+        max_output_tokens: typeof maxTokens === 'number' ? maxTokens : this.openaiMaxTokens,
+        response_format: { type: 'text' }
+      });
+      return this.extractTextFromResponse(response);
+    } catch (error) {
+      logger.error('OpenAI prompt error', { error: error?.message });
+      throw error;
+    }
+  }
+
+  extractTextFromResponse(response) {
+    if (!response) return '';
+    if (typeof response.output_text === 'string' && response.output_text.trim()) {
+      return response.output_text.trim();
+    }
+    if (Array.isArray(response.output)) {
+      const text = response.output
+        .flatMap((item) => Array.isArray(item?.content) ? item.content : [])
+        .map((chunk) => {
+          if (!chunk) return '';
+          if (typeof chunk.text === 'string') return chunk.text;
+          if (chunk.type === 'output_text' && chunk.text?.value) return chunk.text.value;
+          if (chunk.type === 'text' && chunk.text?.value) return chunk.text.value;
+          return '';
+        })
+        .join('')
+        .trim();
+      if (text) return text;
+    }
+    return '';
   }
 
   // Generate mission recommendations based on user profile
   async generateMissionRecommendations(userId, userProfile) {
     try {
       if (this.isMockMode) {
-        return this.getMockRecommendations(userProfile);
+        // Rule-based recommendations using profile hints
+        const integrations = userProfile?.integrations || userProfile?.step6?.integrations || [];
+        const drivingHours = userProfile?.driving_hours || userProfile?.step1?.driving_habits === 'aggressive' ? 3 : 1;
+        const lastPolicyReviewDays = userProfile?.policy_review_days || 120;
+        const lifeScore = userProfile?.lifescore || 50;
+
+        const recs = [];
+        if (lifeScore < 50) {
+          recs.push({ id: 'rec-health-1', type: 'mission', title: 'Hydration Habit', description: 'Drink 8 glasses of water', priority: 'high', xp_reward: 30, lifescore_impact: 6 });
+        }
+        if (drivingHours > 2) {
+          recs.push({ id: 'rec-drive-1', type: 'mission', title: 'Safe Driving Week', description: 'Maintain safe driving for 7 days', priority: 'medium', xp_reward: 60, lifescore_impact: 8 });
+        }
+        if (lastPolicyReviewDays > 90) {
+          recs.push({ id: 'rec-policy-1', type: 'mission', title: 'Policy Review', description: 'Review your policy details', priority: 'medium', xp_reward: 20, lifescore_impact: 3 });
+        }
+        if (integrations.includes('QIC Health Portal')) {
+          recs.push({ id: 'rec-sync-1', type: 'mission', title: 'Sync Health Data', description: 'Sync your health data for better insights', priority: 'high', xp_reward: 40, lifescore_impact: 7 });
+        }
+        return recs.length ? recs : this.getMockRecommendations(userProfile);
       }
 
-      // TODO: Implement real Lovable.dev API call
-      const response = await axios.post(`${this.baseURL}/recommendations`, {
-        userId,
-        profile: userProfile,
-        type: 'missions'
-      }, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      return response.data;
+      if (this.provider === 'openai' && this.openai) {
+        const prompt = this.buildRecommendationPrompt(userProfile);
+        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 600 });
+        return this.parseRecommendationsResponse(raw);
+      }
+      // Fallback generic HTTP provider (legacy)
+      const response = await axios.post(`${this.baseURL}/recommendations`, { userId, profile: userProfile, type: 'missions' }, { headers: { 'Authorization': `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' } });
+      return response?.data;
     } catch (error) {
       logger.error('AI recommendation error:', error);
       // Fallback to mock data
@@ -42,20 +115,31 @@ class AIService {
   async generateAIProfile(onboardingData) {
     try {
       if (this.isMockMode) {
-        return this.getMockProfile(onboardingData);
+        // Map onboarding responses to concise AI profile
+        const step1 = onboardingData?.step1 || {};
+        const step2 = onboardingData?.step2 || {};
+        const step3 = onboardingData?.step3 || {};
+        const step4 = onboardingData?.step4 || {};
+        const step5 = onboardingData?.step5 || {};
+        const step6 = onboardingData?.step6 || {};
+        return {
+          risk_level: step1?.risk_tolerance || 'medium',
+          health_score: this.calculateHealthScore(step2),
+          family_priority: step3?.dependents > 0 ? 'high' : 'low',
+          financial_goals: step4?.investment_risk || 'moderate',
+          insurance_focus: step5?.coverage_types || ['health'],
+          integrations: step6?.integrations || [],
+          ai_personality: 'encouraging'
+        };
       }
 
-      // TODO: Implement real Lovable.dev API call
-      const response = await axios.post(`${this.baseURL}/profile`, {
-        onboardingData
-      }, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      return response.data;
+      if (this.provider === 'openai' && this.openai) {
+        const prompt = this.buildProfilePrompt(onboardingData);
+        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 400 });
+        return this.parseJsonOrFallback(raw, () => this.getMockProfile(onboardingData));
+      }
+      const response = await axios.post(`${this.baseURL}/profile`, { onboardingData }, { headers: { 'Authorization': `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' } });
+      return response?.data;
     } catch (error) {
       logger.error('AI profile generation error:', error);
       // Fallback to mock data
@@ -67,20 +151,18 @@ class AIService {
   async predictScenarioOutcome(scenarioInputs) {
     try {
       if (this.isMockMode) {
-        return this.getMockScenarioPrediction(scenarioInputs);
+        // Deterministic local prediction for explainability
+        const userId = scenarioInputs?.user_id || 'local';
+        return this.generateScenarioPrediction(userId, scenarioInputs?.inputs || {});
       }
 
-      // TODO: Implement real Lovable.dev API call
-      const response = await axios.post(`${this.baseURL}/scenarios`, {
-        inputs: scenarioInputs
-      }, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      return response.data;
+      if (this.provider === 'openai' && this.openai) {
+        const prompt = this.buildScenarioPrompt(scenarioInputs);
+        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 800 });
+        return this.parseJsonOrFallback(raw, () => this.getMockScenarioPrediction(scenarioInputs));
+      }
+      const response = await axios.post(`${this.baseURL}/scenarios`, { inputs: scenarioInputs }, { headers: { 'Authorization': `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' } });
+      return response?.data;
     } catch (error) {
       logger.error('AI scenario prediction error:', error);
       // Fallback to mock data
@@ -125,15 +207,137 @@ class AIService {
    * @param {string} userId
    */
   async predictInsights(userId) {
-    // Simple placeholder insights; real version would use behavior + profile
-    return [
-      { title: 'Quick win: 15-min walk', detail: 'Walking daily can raise LifeScore ~3 in a week.', confidence: 0.82 },
-      { title: 'Maintain streak', detail: 'Completing one mission today protects your streak.', confidence: 0.76 },
-      { title: 'Sync health data', detail: 'Connecting health portal unlocks more precise missions.', confidence: 0.64 }
-    ];
+    // Use recent behavior summary to tailor insights
+    let summary = null;
+    try {
+      const { container } = await import('../di/container.js');
+      summary = await container.repos.analytics.getBehaviorSummary(userId);
+    } catch (_) {}
+    const insights = [];
+    if (!summary || summary.lifescore_trend === 'down') {
+      insights.push({ title: 'Quick win: 15-min walk', detail: 'Walking daily can raise LifeScore ~3 in a week.', confidence: 0.82 });
+    }
+    if (!summary || (summary.streak_days || 0) === 0) {
+      insights.push({ title: 'Maintain streak', detail: 'Completing one mission today protects your streak.', confidence: 0.76 });
+    }
+    insights.push({ title: 'Sync health data', detail: 'Connecting health portal unlocks more precise missions.', confidence: 0.64 });
+    return insights;
   }
 
   // Mock data generators
+  buildRecommendationPrompt(userProfile) {
+    return `Based on this user profile: ${JSON.stringify(userProfile)}\n\nRecommend 3-5 personalized insurance-related missions. For each mission provide: title, category (safe_driving|health|financial_guardian|family_protection|lifestyle), difficulty (easy|medium|hard), reason (1 sentence), xp_reward (int), lifescore_impact (int). Return as JSON array.`;
+  }
+  buildScenarioPrompt(scenarioInputs) {
+    return `Analyze this life scenario: ${JSON.stringify(scenarioInputs)}\n\nPredict: lifescore_impact (int -50..50), risk_level (low|medium|high), narrative (2-3 sentences), suggested_missions (array of {id,title,category,xp_reward,lifescore_impact}). Return as JSON.`;
+  }
+  buildProfilePrompt(onboardingData) {
+    return `Generate AI profile from onboarding: ${JSON.stringify(onboardingData)}\n\nReturn JSON with: risk_level (low|medium|high), health_score (0..100), family_priority (low|medium|high), financial_goals (conservative|moderate|aggressive), insurance_focus (array), ai_personality (encouraging|competitive|educational|supportive).`;
+  }
+
+  // Analyze behavioral patterns for enhanced personalization
+  async analyzeBehavioralPatterns(userId, behaviorEvents) {
+    if (this.isMockMode) {
+      return this._mockBehavioralAnalysis(behaviorEvents);
+    }
+
+    try {
+      const prompt = this._buildBehavioralAnalysisPrompt(behaviorEvents);
+      const response = await this.openai.chat.completions.create({
+        model: this.model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 300,
+        temperature: 0.6
+      });
+
+      return this._parseBehavioralAnalysis(response.choices[0].message.content);
+    } catch (error) {
+      logger.error('OpenAI API error for behavioral analysis, falling back to mock', error);
+      return this._mockBehavioralAnalysis(behaviorEvents);
+    }
+  }
+
+  // Generate engagement strategies based on user patterns
+  async generateEngagementStrategies(userId, userProfile, behaviorPatterns) {
+    if (this.isMockMode) {
+      return this._mockEngagementStrategies(userProfile);
+    }
+
+    try {
+      const prompt = this._buildEngagementPrompt(userProfile, behaviorPatterns);
+      const response = await this.openai.chat.completions.create({
+        model: this.model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 500,
+        temperature: 0.8
+      });
+
+      return this._parseEngagementStrategies(response.choices[0].message.content);
+    } catch (error) {
+      logger.error('OpenAI API error for engagement strategies, falling back to mock', error);
+      return this._mockEngagementStrategies(userProfile);
+    }
+  }
+  parseRecommendationsResponse(content) {
+    try { const parsed = JSON.parse(content || '[]'); return Array.isArray(parsed) ? parsed : (parsed.missions || []); } catch { return this.getMockRecommendations({}); }
+  }
+  parseJsonOrFallback(content, fallbackFn) {
+    try { return JSON.parse(content || '{}'); } catch { return fallbackFn(); }
+  }
+
+  // Behavioral analysis helper methods
+  _buildBehavioralAnalysisPrompt(behaviorEvents) {
+    return `Analyze these user behavior events: ${JSON.stringify(behaviorEvents)}\n\nIdentify patterns and return JSON with: engagement_level (low|medium|high), preferred_activity_times (array), mission_completion_rate (0-1), churn_risk (low|medium|high), personalization_insights (array of strings), recommended_engagement_frequency (daily|weekly|monthly).`;
+  }
+
+  _buildEngagementPrompt(userProfile, behaviorPatterns) {
+    return `Based on user profile: ${JSON.stringify(userProfile)} and behavior patterns: ${JSON.stringify(behaviorPatterns)}\n\nGenerate engagement strategies as JSON with: notification_timing (array of optimal times), content_preferences (array), mission_difficulty_preference (easy|medium|hard), reward_motivation (xp|coins|achievements|social), retention_strategies (array of strings).`;
+  }
+
+  _parseBehavioralAnalysis(content) {
+    try {
+      return JSON.parse(content || '{}');
+    } catch {
+      return this._mockBehavioralAnalysis([]);
+    }
+  }
+
+  _parseEngagementStrategies(content) {
+    try {
+      return JSON.parse(content || '{}');
+    } catch {
+      return this._mockEngagementStrategies({});
+    }
+  }
+
+  _mockBehavioralAnalysis(behaviorEvents) {
+    return {
+      engagement_level: 'medium',
+      preferred_activity_times: ['morning', 'evening'],
+      mission_completion_rate: 0.65,
+      churn_risk: 'low',
+      personalization_insights: [
+        'Responds well to health-focused missions',
+        'Prefers short, achievable goals',
+        'Engages more on weekends'
+      ],
+      recommended_engagement_frequency: 'daily'
+    };
+  }
+
+  _mockEngagementStrategies(userProfile) {
+    return {
+      notification_timing: ['09:00', '18:00'],
+      content_preferences: ['health', 'safety', 'family'],
+      mission_difficulty_preference: 'medium',
+      reward_motivation: 'achievements',
+      retention_strategies: [
+        'Send weekly progress summaries',
+        'Create family-focused challenges',
+        'Offer health milestone rewards'
+      ]
+    };
+  }
   getMockRecommendations(userProfile) {
     const { integrations = [], risk_profile = {} } = userProfile;
     

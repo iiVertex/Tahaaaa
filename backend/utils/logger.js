@@ -1,4 +1,12 @@
 import winston from 'winston';
+import { mkdirSync } from 'fs';
+
+// Ensure logs directory exists BEFORE creating file transports
+try {
+  mkdirSync('logs', { recursive: true });
+} catch (error) {
+  // ignore
+}
 
 // Custom format for GDPR-compliant logging
 const gdprFormat = winston.format.combine(
@@ -81,14 +89,6 @@ export const logger = winston.createLogger({
     new winston.transports.File({ filename: 'logs/rejections.log' })
   ]
 });
-
-// Create logs directory if it doesn't exist
-import { mkdirSync } from 'fs';
-try {
-  mkdirSync('logs', { recursive: true });
-} catch (error) {
-  // Directory already exists or permission error
-}
 
 // Log levels: error, warn, info, http, verbose, debug, silly
 export default logger;

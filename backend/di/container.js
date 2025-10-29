@@ -15,6 +15,11 @@ import { ScenarioService } from '../services/scenario.service.js';
 import { MissionService } from '../services/mission.service.js';
 import { RewardService } from '../services/reward.service.js';
 import { LeaderboardService } from '../services/leaderboard.service.js';
+import { ProductService } from '../services/product.service.js';
+import { AchievementService } from '../services/achievement.service.js';
+import { RetentionService } from '../services/retention.service.js';
+import { MultiProductService } from '../services/multiproduct.service.js';
+import { EcosystemService } from '../services/ecosystem.service.js';
 
 export function buildContainer() {
   const repos = {
@@ -31,16 +36,21 @@ export function buildContainer() {
   const gamification = new GamificationService(engine, { users: repos.users });
 
   // Services
-  const services = {
-    gamification,
-    ai: aiService,
-    mission: new MissionService(repos, gamification),
-    reward: new RewardService(repos),
-    leaderboard: new LeaderboardService(repos.leaderboard),
-    profile: new ProfileService(repos, gamification),
-    onboarding: new OnboardingService(repos, gamification),
-    scenario: new ScenarioService(repos)
-  };
+        const services = {
+          gamification,
+          ai: aiService,
+          mission: new MissionService(repos, gamification),
+          reward: new RewardService(repos),
+          leaderboard: new LeaderboardService(repos.leaderboard),
+          profile: new ProfileService(repos, gamification),
+          onboarding: new OnboardingService(repos, gamification),
+          scenario: new ScenarioService(repos),
+          product: new ProductService({ profile: new ProfileService(repos, gamification) }),
+          achievement: new AchievementService(db, gamification),
+          retention: new RetentionService(db),
+          multiproduct: new MultiProductService(db),
+          ecosystem: new EcosystemService(db)
+        };
 
   return { repos, services };
 }

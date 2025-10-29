@@ -13,6 +13,15 @@ export class ProfileService {
     if (!user) return null;
     const userProfile = await this.usersRepo.getUserProfile(userId);
     const stats = await this.gamification.getUserStats(userId);
+    let behavior = null;
+    if (this.analyticsRepo?.getBehaviorSummary) {
+      try {
+        behavior = await this.analyticsRepo.getBehaviorSummary(userId);
+      } catch (_) {}
+    }
+    if (behavior) {
+      stats.lifescoreTrend = behavior.lifescore_trend || 'flat';
+    }
     const suggestions = await this.gamification.getAchievementSuggestions(userId);
     return { user, userProfile, stats, suggestions };
   }

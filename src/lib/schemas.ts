@@ -63,9 +63,21 @@ export const AIRecommendationsSchema = z.object({
   insights: z.array(z.object({
     title: z.string(),
     detail: z.string().optional(),
-    confidence: z.number().optional()
+    confidence: z.number().optional(),
+    priority: z.enum(['high','medium','low']).optional(),
+    action_hint: z.string().optional(),
   })).default([]),
   suggested_missions: z.array(MissionSchema).default([])
+}).extend({
+  product_recommendations: z.array(z.object({
+    product_id: z.string(),
+    name: z.string(),
+    type: z.string().optional(),
+    estimated_premium: z.number().optional(),
+    savings_if_bundled: z.number().optional(),
+    rationale: z.string().optional(),
+    cta: z.string().optional()
+  })).default([])
 });
 export type AIRecommendations = z.infer<typeof AIRecommendationsSchema>;
 

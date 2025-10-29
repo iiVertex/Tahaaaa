@@ -1,6 +1,6 @@
 import helmet from 'helmet';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
+import { rateLimit } from 'express-rate-limit';
 
 // CORS configuration
 const isDev = process.env.NODE_ENV !== 'production';
@@ -9,9 +9,13 @@ const allowedOrigins = process.env.CORS_ORIGIN
   : ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:8082'];
 
 export const corsOptions = {
-  origin: isDev ? true : function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
+  origin: function (origin, callback) {
+    const allowRegexes = [
+      /^http:\/\/localhost:\d+$/,
+      /^http:\/\/127\.0\.0\.1:\d+$/,
+      /^http:\/\/(10\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}|192\.168\.\d{1,3})(?:\.\d{1,3})?:\d+$/
+    ];
+    if (!origin || allowRegexes.some((r) => r.test(origin)) || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       console.warn(`CORS blocked origin: ${origin}`);
@@ -25,14 +29,14 @@ export const corsOptions = {
 
 // Rate limiting configuration
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false
+  }
 });
 
 // Helmet configuration for security headers
@@ -43,7 +47,14 @@ const helmetConfig = {
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://api.supabase.co", "http://localhost:3001"],
+      connectSrc: [
+        "'self'",
+        "https://*.supabase.co",
+        "https://djdpuexsizgyzdudklxt.supabase.co",
+        "https://api.openai.com",
+        "http://localhost:3001",
+        "http://localhost:3002"
+      ],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -62,8 +73,10 @@ export const securityMiddleware = [
 
 // Additional security middleware for specific routes
 export const strictRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Stricter limit for sensitive operations
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: {
     success: false,
     message: 'Rate limit exceeded for this operation.'

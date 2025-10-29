@@ -1,12 +1,12 @@
 import express from 'express';
-import dotenv from 'dotenv';
+import { config as loadEnv } from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
 // Import middleware
 import cors from 'cors';
 import { securityMiddleware, corsOptions } from './middleware/security.js';
-import { errorHandler } from './middleware/errorHandler.js';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { logger } from './utils/logger.js';
 
 // Import routes
@@ -19,21 +19,28 @@ import socialRoutes, { createSocialRouter } from './routes/social.js';
 import rewardsRoutes, { createRewardsRouter } from './routes/rewards.js';
 import scenariosRoutes, { createScenariosRouter } from './routes/scenarios.js';
 import personalizationRoutes, { createPersonalizationRouter } from './routes/personalization.js';
+import analyticsRoutes from './routes/analytics.js';
+import quotesRoutes from './routes/quotes.js';
+import referralsRoutes from './routes/referrals.js';
+import retentionRoutes from './routes/retention.js';
+import multiproductRoutes from './routes/multiproduct.js';
+import ecosystemRoutes from './routes/ecosystem.js';
 import { container } from './di/container.js';
+import offersRoutes from './routes/offers.js';
+import productsRoutes from './routes/products.js';
+import achievementsRoutes from './routes/achievements.js';
 
 // Load environment variables
-dotenv.config();
+loadEnv();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+let PORT = Number(process.env.PORT || 3001);
 
-// Preflight for all routes (CORS) - must be before other middleware
-app.options('*', cors(corsOptions));
 // Security middleware
-app.use(securityMiddleware);
+securityMiddleware.forEach((middleware) => app.use(middleware));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -61,25 +68,45 @@ app.use('/api/social', createSocialRouter ? createSocialRouter(container.service
 app.use('/api/rewards', createRewardsRouter ? createRewardsRouter(container.services) : rewardsRoutes);
 app.use('/api/scenarios', createScenariosRouter ? createScenariosRouter(container.services) : scenariosRoutes);
 app.use('/api/personalization', createPersonalizationRouter ? createPersonalizationRouter(container.services) : personalizationRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/quotes', quotesRoutes);
+app.use('/api/referrals', referralsRoutes);
+app.use('/api/retention', retentionRoutes);
+app.use('/api/multiproduct', multiproductRoutes);
+app.use('/api/ecosystem', ecosystemRoutes);
+app.use('/api/offers', offersRoutes);
+app.use('/api/products', productsRoutes);
+app.use('/api/achievements', achievementsRoutes);
+
+// 404 handler
+app.use(notFoundHandler);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found',
-    path: req.originalUrl
+// Start server with automatic port fallback to avoid EADDRINUSE during dev
+function start(port, attemptsLeft = 3) {
+  const server = app.listen(port, () => {
+    PORT = port;
+    logger.info(`QIC Backend Server running on port ${PORT}`);
+    logger.info(`Environment: ${process.env.NODE_ENV}`);
+    logger.info(`CORS Origin: ${process.env.CORS_ORIGIN}`);
   });
-});
+  
+  server.on('error', (err) => {
+    if (err?.code === 'EADDRINUSE' && attemptsLeft > 0) {
+      const nextPort = port + 1;
+      logger.warn(`Port ${port} in use. Retrying on ${nextPort}...`);
+      server.close();
+      setTimeout(() => start(nextPort, attemptsLeft - 1), 500);
+    } else {
+      logger.error('Failed to start server', { error: err?.message, code: err?.code });
+      process.exit(1);
+    }
+  });
+}
 
-// Start server
-app.listen(PORT, () => {
-  logger.info(`QIC Backend Server running on port ${PORT}`);
-  logger.info(`Environment: ${process.env.NODE_ENV}`);
-  logger.info(`CORS Origin: ${process.env.CORS_ORIGIN}`);
-});
+start(PORT);
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

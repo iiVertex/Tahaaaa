@@ -1,203 +1,268 @@
-<!-- e11d25b3-d6e9-438a-9894-959dbeb8d4a9 40996ab8-a17e-4ca8-b185-c4711fa04474 -->
-# Backend MVP Validation Plan (PowerShell-first)
+<!-- e11d25b3-d6e9-438a-9894-959dbeb8d4a9 58bb9dac-9fad-4204-9fab-d75a80550b64 -->
+# Qatar-Themed Frontend Development Plan
+
+## Phase 1: Design System & Theme Setup (Foundation)
+
+### 1.1 Install Dependencies
+- Install framer-motion for animations: `npm install framer-motion`
+- Verify existing Radix UI, shadcn/ui, Tailwind are functional
+
+### 1.2 Update Qatar Color Palette
+**File: `src/index.css`**
+- Replace existing colors with Qatar theme:
+  - `--qic-primary: #444097` (Qatar purple)
+  - `--qic-accent: #FFD700` (gold)
+  - `--qic-secondary: #800000` (maroon)
+  - `--qic-bg: #FAFAFA` (light cream)
+  - Keep existing text/border variables
+- Add CSS custom properties for patterns:
+  - `--pattern-star: url('data:image/svg+xml,...')` for geometric stars
+  - `--pattern-mosaic: url('data:image/svg+xml,...')` for borders
+
+### 1.3 Create Qatar Cultural Assets Component
+**New File: `src/components/QatarAssets.tsx`**
+- Fetch/embed SVG components from web sources:
+  - Dallah (coffee pot) icon component
+  - Date palm motif component
+  - Geometric Islamic pattern component (interlocking stars)
+- Export as reusable React components with customizable size/color props
+
+### 1.4 Create Animation Utilities
+**New File: `src/lib/animations.ts`**
+- Define framer-motion variants for:
+  - LifeScore number countup animation
+  - Mission card entrance (fade + slide)
+  - Reward unlock celebration (scale + bounce)
+  - Insight badge pulse
+- Mark advanced animations with `// TODO: Enhance later` comments
+
+## Phase 2: API Integration Layer (Data Flow)
+
+### 2.1 Extend API Client for 3 Core Endpoints
+**File: `src/lib/api.ts`**
+- Add `getAIInsights()` → `GET /api/ai/recommendations` (returns insights array)
+- Keep existing `getRecommendations()` for missions
+- Keep existing `simulateScenario()` for scenarios
+- Add types/schemas to `src/lib/schemas.ts`:
+  - `InsightSchema` (title, detail, confidence, priority, action_hint)
+  - `MissionRecommendationSchema` (extends MissionSchema with ai_rationale, product_spotlight)
+  - `ScenarioPredictionSchema` (already exists, verify structure)
+
+### 2.2 Create Personalization Hook (Future-Ready)
+**New File: `src/hooks/usePersonalization.ts`**
+- Custom hook to fetch layout configuration (stub for now):
+  - Returns default module order: `['health-summary', 'ai-insights', 'suggested-missions', 'general-missions', 'rewards-offers']`
+  - Add `// TODO: Connect to GET /api/personalization/layout` comment
+- Use this in Dashboard to dynamically order components
+
+## Phase 3: Core Screen Development (3 Screens)
+
+### 3.1 Refactor Dashboard (Health.tsx → Dashboard)
+**File: `src/pages/Health.tsx`** (rename logic, keep file)
+- **Header Section**:
+  - Display "مرحبا" (Marhaba - Welcome) with dallah icon
+  - Show user's LifeScore as circular progress (0-100) using `@radix-ui/react-progress`
+  - Add trend arrow (↑↓) based on recent change (mock for now)
+  - Animate number countup with framer-motion
+- **Dynamic Modules** (ordered by `usePersonalization`):
+  1. **Health Summary Card**: LifeScore, XP, Level, Streak (existing logic)
+  2. **AI Insights Card** (NEW): Fetch `getAIInsights()`, display 1-3 insights with confidence badges, action hints as subtle buttons
+  3. **Suggested Missions Card** (NEW): Fetch `getRecommendations()`, show top 3 AI-recommended missions with `ai_rationale` tooltips, product spotlight badges
+  4. **Quick Actions**: Links to Play page and Rewards
+- **Background**: Subtle geometric pattern overlay (low opacity)
+- **Spacing**: Use majlis-inspired card groupings (cozy gaps, rounded corners)
+
+### 3.2 Enhance Play Page (Existing Play.tsx)
+**File: `src/pages/Play.tsx`**
+- **Missions Section**:
+  - Fetch `getMissions()` + `getRecommendations()` and merge
+  - Display as cards with category badges (health/safe_driving/policy_review)
+  - Show difficulty (easy/medium/hard) with star icons
+  - Add "AI Pick" badge for recommended missions
+  - Animate card entrance on load
+  - Start/Complete buttons trigger backend, show success toast with XP/coins earned
+- **Scenario Simulator Section**:
+  - Keep existing input form (walk_minutes, diet_quality, etc.)
+  - Style inputs with Qatar colors
+  - Call `simulateScenario()`, display prediction narrative with LifeScore impact visualization (before/after bars)
+  - Show suggested missions from scenario result, allow one-click start
+- **Cultural Icons**: Use date palm icon for health missions, dallah for wellness
+
+### 3.3 Enhance Rewards Page (Existing Rewards.tsx)
+**File: `src/pages/Rewards.tsx`**
+- **Header**: Show coin balance with gold accent, animated coin icon
+- **Rewards Grid**:
+  - Fetch `getRewards()` from backend
+  - Display as cards with partner logos (use placeholders if none)
+  - Show coins_cost, discount, valid_until
+  - Redeem button with confirmation dialog
+  - Animate unlock with framer-motion scale/bounce
+- **Cross-Sell Section** (Placeholder):
+  - Display "Recommended for You" banner
+  - Show 1-2 QIC product recommendations (based on profile - stub for now)
+  - Add `// TODO: Connect to AI profile/layout endpoint` comment
+- **Cultural Touch**: Geometric border dividers between sections
+
+## Phase 4: Shared Components & UX Polish
+
+### 4.1 Create Qatar-Styled Components
+**New File: `src/components/LifeScoreRing.tsx`** (enhance existing)
+- Circular progress with gradient (purple → gold)
+- Animated number countup using framer-motion
+- Trend indicator (↑ green, ↓ red, → gray)
+
+**New File: `src/components/MissionCard.tsx`** (enhance existing)
+- Add `ai_rationale` tooltip (Radix Popover)
+- Product spotlight badge (gold accent)
+- Category icon (health → palm, safety → shield, etc.)
+- Difficulty stars (1-3 stars for easy/medium/hard)
+- Entrance animation on mount
+
+**New File: `src/components/InsightCard.tsx`** (NEW)
+- Display insight title, detail, confidence meter (0-1 as percentage)
+- Priority badge (high/medium/low with colors)
+- Action hint as subtle CTA button
+- Pulse animation for high-priority insights
+
+**New File: `src/components/QatarPattern.tsx`** (NEW)
+- Renders geometric SVG pattern as background/divider
+- Props: variant ('stars' | 'mosaic'), opacity, color
+
+### 4.2 Update Bottom Navigation
+**File: `src/components/BottomNav.tsx`**
+- Restyle with Qatar colors (active = gold, inactive = gray)
+- Add subtle icon background on active state
+- Keep existing 3-screen structure (Dashboard, Play, Rewards)
+
+### 4.3 Create Toast Notification System
+**New File: `src/components/Toast.tsx`**
+- Use Radix Toast primitive
+- Qatar-styled success/error variants
+- Trigger on mission complete, reward redeem, etc.
+- Animate with framer-motion slide-in
+
+### 4.4 Loading States & Skeletons
+**File: `src/components/Skeletons.tsx`** (enhance existing)
+- Add shimmer effect with Qatar gradient
+- Create InsightSkeleton, MissionSkeleton, RewardSkeleton variants
+
+## Phase 5: Animation & Micro-Interactions
+
+### 5.1 LifeScore Animations
+- Number countup when value changes (framer-motion animate prop)
+- Pulse glow effect on increase (CSS keyframe + framer-motion)
+- Confetti burst for milestones (mark as `// TODO: Full implementation`)
+
+### 5.2 Mission Completion Flow
+- Button → Loading spinner → Success checkmark animation
+- Card fade-out on complete
+- Toast notification with earned rewards
+
+### 5.3 Reward Redemption Flow
+- Modal confirmation with coin deduction preview
+- Success animation (coin icon flies to balance)
+- Mark completed rewards with "Redeemed" badge
+
+## Phase 6: Responsive & Mobile-First
+
+### 6.1 Mobile Layout Adjustments
+- Ensure all cards stack vertically on <768px
+- Bottom nav sticky on mobile
+- Touch-friendly button sizes (min 44px)
+- Test on 375px width (iPhone SE baseline)
+
+### 6.2 Tablet/Desktop Enhancements
+- Dashboard modules in 2-column grid on >768px
+- Play page split: missions left, simulator right
+- Rewards in 3-column grid on >1024px
+
+## Phase 7: Error Handling & Polish
+
+### 7.1 API Error Fallbacks
+- If `getAIInsights()` fails: show generic motivational message
+- If `getRecommendations()` fails: fall back to regular missions list
+- If `simulateScenario()` fails: display error with retry button
+
+### 7.2 Empty States
+- No missions: "Check back soon" with palm icon
+- No insights: "Keep completing missions to unlock insights"
+- No rewards: "Earn more coins to unlock rewards"
+
+### 7.3 Accessibility
+- ARIA labels for all interactive elements
+- Focus visible states (Qatar purple outline)
+- Keyboard navigation for modals/toasts
+
+## Phase 8: Final Integration & Testing
+
+### 8.1 Connect All 3 Core Endpoints
+- Verify `getRecommendations()` returns missions + insights
+- Test `simulateScenario()` with various inputs
+- Confirm backend returns expected schemas
+
+### 8.2 End-to-End User Flows
+1. Dashboard load → see LifeScore, insights, suggested missions
+2. Click mission → start → complete → see XP/coin toast → LifeScore updates
+3. Simulate scenario → see prediction → start suggested mission
+4. Go to Rewards → redeem with coins → see updated balance
+
+### 8.3 Performance Check
+- API calls <2s (already backend requirement)
+- Page load animations smooth (60fps)
+- No layout shift on data load (use skeletons)
+
+## Phase 9: Documentation & Handoff
+
+### 9.1 Add Component Storybook Comments
+- JSDoc comments for Qatar-themed components
+- Props documentation with examples
+
+### 9.2 Update README Frontend Section
+- Add Qatar design system details
+- Document cultural icon usage
+- List installed dependencies (framer-motion)
+
+### 9.3 Create TODO.md for Future Enhancements
+- Full Arabic translation + RTL
+- Advanced animations (confetti, particle effects)
+- Profile/layout endpoint integration
+- Supabase real-time updates
+- Social features (leaderboard page)
+
+---
+
+## Implementation Notes
+
+**Backend Untouched**: All changes are frontend-only (src/ directory). No modifications to backend/ files.
+
+**Phased Approach**: Start with Phase 1-3 for functional MVP, then iterate on UX polish in Phase 4-6.
+
+**Cultural Authenticity**: Use web-sourced SVG assets for dallah, palm, geometric patterns. Embed inline or as React components.
+
+**Animation Balance**: Framer-motion for key moments (LifeScore, mission complete), CSS transitions for subtle interactions. Mark advanced animations as TODOs.
+
+**API Schema Validation**: Use existing Zod schemas in `src/lib/schemas.ts`, extend for new AI endpoints.
+
+**Mobile-First**: Build for 375px viewport first, enhance for larger screens.
 
-### Scope & Goals
-
-- Validate, end-to-end, that the backend fulfills the Track 1 MVP engagement loop:
-
-Behavior → AI Insight → Mission → Reward → Improved LifeScore → Cross-sell Opportunity
-
-- Cover every route, security constraint, state transition, and key error path.
-- Produce repeatable, script-driven checks and a concise pass/fail report.
-
-### Pre-requisites
-
-- Backend running at `http://localhost:3001` with `backend/.env`:
-  - `NODE_ENV=development`, `PORT=3001`, `CORS_ORIGIN=http://localhost:8082,http://localhost:5173,http://localhost:8080`
-- Frontend not required for backend validation, but can be used to spot UI regressions.
-- PowerShell 5+ (Windows) to run validation scripts.
-
-### Methodology
-
-- Primary: PowerShell requests (Invoke-RestMethod) with a generated `x-session-id`.
-- Supplement: curl commands for quick repros; manual negative cases where needed.
-- Artifacts: One JSON summary per run.
-
-### Phase 0 — Environment & Security
-
-- Verify server boots and logs environment/origin.
-- Validate CORS preflight works (OPTIONS) and dev CSP is relaxed.
-
-PowerShell
-
-```powershell
-$base = 'http://localhost:3001'
-Invoke-RestMethod -Method GET -Uri "$base/api/health"
-Invoke-WebRequest -UseBasicParsing -Method OPTIONS -Uri "$base/api/missions" -Headers @{ 'Origin'='http://localhost:8082'; 'Access-Control-Request-Method'='GET' }
-```
-
-Pass if: 200 OK on health; OPTIONS returns 204/200 and includes CORS headers.
-
-### Phase 1 — Session-based Auth
-
-- Generate session id; all subsequent calls include `'x-session-id'`.
-```powershell
-$sid = [guid]::NewGuid().ToString('N')
-$h = @{ 'x-session-id' = $sid; 'Content-Type' = 'application/json' }
-```
-
-
-Pass if: Auth-required endpoints return 200 with this header and 401 without it.
-
-### Phase 2 — Missions Flow (Core Loop)
-
-1) List missions → 200 + array
-
-2) Start mission → 201/200 + message
-
-3) Complete mission → 200 + rewards object
-
-4) Verify XP/LifeScore/coins/streak increments
-
-```powershell
-$missions = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/missions"
-$mid = $missions.data.missions[0].id
-Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/missions/start" -Body (@{ missionId=$mid }|ConvertTo-Json)
-$complete = Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/missions/complete" -Body (@{ missionId=$mid }|ConvertTo-Json)
-$complete.data.rewards
-```
-
-Pass if: rewards contain `xp>0`, `lifescore>0`, `coins>=0`, with consistent user stats.
-
-### Phase 3 — Rewards Hub
-
-1) List rewards → 200 + active rewards
-
-2) Redeem reward (with sufficient coins) → 201/200
-
-3) Verify coin deduction reflected
-
-```powershell
-$rewards = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/rewards"
-$rid = $rewards.data.rewards[0].id
-$redeem = Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/rewards/redeem" -Body (@{ rewardId=$rid }|ConvertTo-Json)
-```
-
-Pass if: `redeem.success` true and user coins decrease accordingly.
-
-### Phase 4 — AI Recommendations
-
-- Get insights + suggested missions
-```powershell
-$ai = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/ai/recommendations"
-$ai.data.insights; $ai.data.suggested_missions
-```
-
-
-Pass if: Non-empty arrays; structure stable (title/detail/confidence; id/title/category/xp_reward/...)
-
-### Phase 5 — Scenario Simulation
-
-1) Simulate with inputs → returns impact/xp/risk/narrative/suggested_missions
-
-2) Optionally apply → `?apply=true` starts first suggested mission
-
-```powershell
-$payload = @{ walk_minutes=30; diet_quality='good' }|ConvertTo-Json
-$sim = Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/scenarios/simulate" -Body $payload
-$apply = Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/scenarios/simulate?apply=true" -Body $payload
-```
-
-Pass if: `lifescore_impact>0`, `xp_reward>0`; `apply.data.applied.started` includes 1 mission id.
-
-### Phase 6 — Profile
-
-1) GET profile → user, stats, suggestions present
-
-2) PUT profile → update fields and reflect
-
-```powershell
-$profile = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/profile"
-$update = Invoke-RestMethod -Headers $h -Method PUT -Uri "$base/api/profile" -Body (@{ username='hero' }|ConvertTo-Json)
-```
-
-Pass if: `update.success` true and subsequent GET reflects change.
-
-### Phase 7 — Social
-
-- GET friends; GET leaderboard
-```powershell
-$friends = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/social/friends"
-$board = Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/social/leaderboard"
-```
-
-
-Pass if: Arrays returned; leaderboards ordered sensibly.
-
-### Phase 8 — Onboarding (DI path)
-
-- POST submit with valid 7-step object (exactly 3 integrations), GET progress
-```powershell
-$onboard = @{ step1=@{risk_tolerance='medium'}; step2=@{exercise_frequency=3;diet_quality='good';daily_routine='moderate'}; step3=@{dependents=1}; step4=@{investment_risk='moderate'}; step5=@{coverage_types=@('health')}; step6=@{integrations=@('QIC Mobile App','QIC Health Portal','QIC Rewards Program')}; step7=@{} } | ConvertTo-Json -Depth 5
-Invoke-RestMethod -Headers $h -Method POST -Uri "$base/api/onboarding/submit" -Body $onboard
-Invoke-RestMethod -Headers $h -Method GET -Uri "$base/api/onboarding/progress"
-```
-
-
-Pass if: `success=true`, progress shows 7 steps when subsequently completed.
-
-### Phase 9 — Validation & Error Paths
-
-- Missing/invalid bodies for POSTs → 400 with helpful message (Joi)
-- Rate limit exceeded → 429 with message (strict endpoints)
-- Unauthorized without headers → 401/400 as appropriate
-```powershell
-# 400
-Invoke-WebRequest -UseBasicParsing -Method POST -Uri "$base/api/missions/start" -Headers $h -Body (@{}|ConvertTo-Json)
-# 401
-Invoke-WebRequest -UseBasicParsing -Method GET -Uri "$base/api/missions"
-```
-
-
-Pass if: Expected status codes and messages are returned.
-
-### Phase 10 — Performance Smoke
-
-- Ensure P50 latency for core GETs < 150ms locally; POSTs < 300ms.
-- Manual check via repeating Invoke-RestMethod (3x) and timing.
-
-### Phase 11 — Logging & Observability
-
-- Confirm logs on each route include: method, path, sessionId, and key business events (started/completed/awarded).
-- Inspect console/log output after each phase.
-
-### Phase 12 — Supabase Toggle (Optional)
-
-- With `USE_SUPABASE=true` and valid keys, re-run Phases 2–8 to ensure identical contract.
-- Pass if: same responses (minus ids/timestamps) and integrity (FKs) enforced.
-
-### Script Runner (Consolidated)
-
-- Use the existing `scripts/test-api.ps1` as a base; extend to include AI, scenarios apply, onboarding, social, negative tests, and JSON result emission.
-
-Run
-
-```powershell
-powershell -File .\scripts\test-api.ps1 | Out-File .\last-backend-validation.json
-Get-Content .\last-backend-validation.json
-```
-
-### Exit Criteria (All must pass)
-
-- **Security**: CORS preflight passes; dev CSP does not block API; auth works with session id; rate-limited routes enforce 429.
-- **Core Loop**: Missions start/complete updates XP, LifeScore, coins, streak; Rewards redeem adjusts coins; Profile reflects stats; AI insights present; Scenarios simulate and can apply suggested missions.
-- **Stability**: All endpoints respond 2xx with valid bodies; error paths respond with appropriate 4xx/429 and messages.
-- **Observability**: Logs capture key actions and user/session context.
-- **(Optional)** Supabase mode parity.
 
 ### To-dos
 
-- [ ] Extend scripts/test-api.ps1 to cover AI, scenarios apply, onboarding, negative tests
-- [ ] Emit consolidated JSON summary to last-backend-validation.json
-- [ ] Add basic latency timing and thresholds to script output
-- [ ] Add optional SUPABASE mode test block with USE_SUPABASE=true
+- [ ] Install framer-motion for animations
+- [ ] Update color palette in index.css to Qatar theme (purple #444097, gold #FFD700, maroon #800000)
+- [ ] Create QatarAssets.tsx with dallah, palm, geometric pattern SVG components from web
+- [ ] Create animations.ts with framer-motion variants for LifeScore, missions, rewards
+- [ ] Add getAIInsights() to api.ts and create InsightSchema in schemas.ts
+- [ ] Create usePersonalization.ts hook with default module order (stub for layout endpoint)
+- [ ] Refactor Health.tsx into Qatar-themed Dashboard with AI insights, suggested missions, LifeScore ring
+- [ ] Enhance Play.tsx with AI-recommended missions, scenario simulator with predictions, cultural icons
+- [ ] Enhance Rewards.tsx with coin balance, redemption flow, cross-sell placeholder
+- [ ] Create enhanced LifeScoreRing.tsx with circular progress, countup animation, trend indicator
+- [ ] Create enhanced MissionCard.tsx with AI rationale tooltip, product spotlight, category icons, difficulty stars
+- [ ] Create InsightCard.tsx with confidence meter, priority badge, action hint CTA
+- [ ] Create QatarPattern.tsx for background geometric SVG patterns
+- [ ] Restyle BottomNav.tsx with Qatar colors (gold active state)
+- [ ] Create Toast.tsx using Radix Toast with Qatar-styled variants
+- [ ] Enhance Skeletons.tsx with Qatar gradient shimmer effect
+- [ ] Test complete user flows: Dashboard load → mission start/complete → scenario sim → reward redeem
+- [ ] Create TODO.md with future enhancements (Arabic/RTL, advanced animations, profile/layout endpoints)

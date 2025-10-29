@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { getProfile, updateProfile } from '@/lib/api';
-import BottomNav from '@/components/BottomNav';
 import i18n, { setDirection } from '@/lib/i18n';
+import { useToast } from '@/components/Toast';
+import { useTranslation } from 'react-i18next';
+import MajlisLayout from '@/components/MajlisLayout';
 
 export default function Profile() {
+  const { t } = useTranslation();
+  const toast = useToast();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -12,39 +16,37 @@ export default function Profile() {
     setLoading(true);
     getProfile()
       .then((d) => setProfile(d?.data || d))
-      .catch((e) => setError(e?.message || 'Failed to load profile'))
+      .catch(() => setError(t('errors.loadProfile')))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   const save = async () => {
     try {
       await updateProfile({ nickname: profile?.nickname || 'hero' });
-      alert('Saved');
+      toast.success(t('profile.saved'));
     } catch (e: any) {
-      alert(e?.message || 'Failed to save');
+      toast.error(t('profile.saveFailed'), e?.message);
     }
   };
 
   return (
-    <div style={{ paddingBottom: 64 }}>
-      <h2>Profile</h2>
-      {loading && <p>Loading...</p>}
+    <MajlisLayout titleKey="profile.title">
+      {loading && <p>{t('loading')}</p>}
       {error && <p style={{ color: 'salmon' }}>{error}</p>}
       <pre style={{ background: '#111418', padding: 12, borderRadius: 8 }}>
         {JSON.stringify(profile, null, 2)}
       </pre>
-      <button onClick={save}>Save</button>
-      <div className="qic-card" style={{ padding: 12, marginTop: 12 }}>
+      <button onClick={save}>{t('save')}</button>
+      <div className="qic-card-majlis" style={{ padding: 12, marginTop: 12 }}>
         <label>
-          Language
+          {t('language')}
           <select value={i18n.language} onChange={(e)=>{ const lng = e.target.value; localStorage.setItem('lng', lng); i18n.changeLanguage(lng); setDirection(lng); }}>
             <option value="en">English</option>
             <option value="ar">العربية</option>
           </select>
         </label>
       </div>
-      <BottomNav />
-    </div>
+    </MajlisLayout>
   );
 }
 

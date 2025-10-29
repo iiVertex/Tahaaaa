@@ -53,13 +53,25 @@ export function createPersonalizationRouter(deps) {
       aiService.recommendAdaptiveMissions(userId, profileData)
     ]);
 
+    const flags = {
+      offers_enabled: true,
+      referrals_enabled: true,
+      insurance_sim_enabled: true
+    };
+
+    const nudges = [
+      { id: 'renewal_check', title: 'Check renewal options', copy: 'You could save by bundling auto+home.', cta: 'View offers' }
+    ];
+
     res.json({
       success: true,
       data: {
         modules,
         insights,
         suggested_missions: suggestedMissions,
-        generated_at: new Date().toISOString()
+        generated_at: new Date().toISOString(),
+        flags,
+        nudges
       }
     });
   }));

@@ -11,11 +11,12 @@ import { logger } from '../utils/logger.js';
 
 // Get AI recommendations
 // Factory router
-/** @param {{ ai: any, profile: import('../services/profile.service.js').ProfileService }} deps */
+/** @param {{ ai: any, profile: import('../services/profile.service.js').ProfileService, product?: import('../services/product.service.js').ProductService }} deps */
 export function createAiRouter(deps) {
   const router = express.Router();
   const aiService = deps?.ai;
   const profileService = deps?.profile;
+  const productService = deps?.product;
 
   router.get('/recommendations', 
   authenticateUser,
@@ -30,10 +31,17 @@ export function createAiRouter(deps) {
       const profileData = composite?.userProfile?.profile_json || {};
 
       // Get AI outputs: insights + suggested missions
-      const [insights, suggestedMissions] = await Promise.all([
+      const [insights, suggestedMissionsRaw] = await Promise.all([
         aiService.predictInsights(userId),
         aiService.recommendAdaptiveMissions(userId, profileData)
       ]);
+
+      // Shape suggested missions for frontend (reason -> ai_rationale)
+      const suggestedMissions = (suggestedMissionsRaw || []).map((m) => ({
+        ...m,
+        ai_rationale: m.reason || 'Recommended for your profile',
+        product_spotlight: productService ? productService.getProductSpotlight(m.category) : undefined
+      }));
 
       logger.info('AI recommendations generated', {
         userId,
@@ -42,11 +50,34 @@ export function createAiRouter(deps) {
         missions: suggestedMissions?.length || 0
       });
 
+      // Dynamic product recommendations via ProductService
+      let productRecommendations = [];
+      try {
+        if (productService) {
+          const eligibles = await productService.getEligibleProducts(userId);
+          const top = eligibles.filter((p) => p.eligible).slice(0, 3);
+          const ids = top.map((p) => p.id);
+          const bundle = productService.calculateBundleSavings(ids);
+          productRecommendations = top.map((p) => ({
+            product_id: p.id,
+            name: p.name,
+            type: p.type,
+            estimated_premium: p.base_premium,
+            savings_if_bundled: Math.round((bundle?.savings_percent || 0) * 100),
+            rationale: 'Based on your profile and recent activity.',
+            cta: 'Get Quote'
+          }));
+        }
+      } catch (e) {
+        logger.warn('AI product recommendations fallback', { error: e?.message });
+      }
+
       res.json({
         success: true,
         data: {
           insights,
           suggested_missions: suggestedMissions,
+          product_recommendations: productRecommendations,
           generated_at: new Date().toISOString(),
           type
         }

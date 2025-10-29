@@ -1,18 +1,25 @@
 :root {
-  --qic-primary: #5D44FF;       /* deep purple-blue */
-  --qic-primary-600: #4b36e6;
-  --qic-accent: #00D77F;        /* lime/mint green */
-  --qic-bg: #FFFFFF;            /* main panels */
-  --qic-surface: #F5F6FA;       /* soft grey cards */
+  /* Qatar theme palette */
+  --qic-primary: #444097;       /* Qatar purple */
+  --qic-primary-600: #3a3685;
+  --qic-accent: #FFD700;        /* gold */
+  --qic-secondary: #800000;     /* maroon */
+  --qic-bg: #FAFAFA;            /* light cream */
+  --qic-surface: #FFFFFF;       /* cards */
   --qic-text: #2E2E2E;          /* body text */
   --qic-muted: #6b7280;         /* secondary text */
   --qic-border: #E6E8EE;        /* subtle borders */
+  --spacing-cozy: 12px;         /* majlis-inspired spacing */
+
+  /* Cultural pattern assets (SVG data placeholders) */
+  --pattern-star: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 8 8%22%3E%3Cpath fill=%22%23444097%22 fill-opacity=%220.06%22 d=%22M4 0l1 2 2 1-2 1-1 2-1-2-2-1 2-1z%22/%3E%3C/svg%3E');
+  --pattern-mosaic: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%228%22 height=%228%22 viewBox=%220 0 8 8%22%3E%3Crect width=%228%22 height=%228%22 fill=%22%23FFD700%22 fill-opacity=%220.04%22/%3E%3Cpath d=%22M0 0h8v1H0zM0 3h8v1H0zM0 6h8v1H0z%22 fill=%22%23800000%22 fill-opacity=%220.05%22/%3E%3C/svg%3E');
 }
 
 html, body, #root { height: 100%; }
 body {
   margin: 0;
-  background: var(--qic-surface);
+  background: var(--qic-bg);
   color: var(--qic-text);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
@@ -26,13 +33,78 @@ button {
   border: 1px solid var(--qic-primary-600);
   padding: 8px 12px;
   border-radius: 8px;
+  min-height: 44px; /* touch target */
 }
 button:disabled { opacity: 0.6; }
 
+/* Focus visibility for accessibility */
+button:focus-visible, a:focus-visible {
+  outline: 2px solid var(--qic-primary);
+  outline-offset: 2px;
+}
+
 /* Simple card utility */
 .qic-card {
-  background: var(--qic-bg);
+  background: var(--qic-surface);
   border: 1px solid var(--qic-border);
   border-radius: 12px;
+}
+
+/* Majlis-inspired card variant */
+.qic-card-majlis {
+  background: var(--qic-surface);
+  border: 1px solid var(--qic-border);
+  border-radius: 14px;
+  padding: var(--spacing-cozy);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+}
+
+/* Subtle star pattern utility for backgrounds */
+.qic-pattern-stars {
+  background-image: var(--pattern-star);
+  background-size: 12px 12px;
+}
+
+.qic-pattern-mosaic {
+  background-image: var(--pattern-mosaic);
+  background-size: 16px 16px;
+}
+
+/* Responsive grids */
+.grid-modules { display: grid; gap: 16px; }
+@media (min-width: 768px) {
+  .grid-modules { grid-template-columns: 1fr 1fr; }
+}
+
+.grid-play { display: grid; gap: 16px; }
+@media (min-width: 768px) {
+  .grid-play { grid-template-columns: 1.2fr 0.8fr; align-items: start; }
+}
+
+.grid-rewards { display: grid; gap: 12px; grid-template-columns: 1fr; }
+@media (min-width: 1024px) {
+  .grid-rewards { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Mobile utilities */
+@media (max-width: 767px) {
+  .mobile-hide { display: none !important; }
+  .mobile-stack { display: flex; flex-direction: column !important; gap: var(--spacing-cozy) !important; }
+}
+
+/* Skip link accessibility */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+}
+.skip-to-content:focus {
+  left: 12px;
+  top: 12px;
+  background: var(--qic-primary);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  z-index: 1000;
 }
 

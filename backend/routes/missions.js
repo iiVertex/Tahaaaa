@@ -6,10 +6,12 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { strictRateLimit } from '../middleware/security.js';
 
-/** @param {{ mission: import('../services/mission.service.js').MissionService }} deps */
+/** @param {{ mission: import('../services/mission.service.js').MissionService, product?: import('../services/product.service.js').ProductService }} deps */
 export function createMissionsRouter(deps) {
   const router = express.Router();
   const missionService = deps?.mission;
+  const productService = deps?.product;
+  const achievementService = deps?.achievement;
 
   // Get all missions with filters
   router.get('/', 
@@ -32,6 +34,7 @@ export function createMissionsRouter(deps) {
           const userMission = userMissionMap.get(mission.id);
           return {
             ...mission,
+            product_spotlight: productService ? productService.getProductSpotlight(mission.category) : undefined,
             user_progress: userMission ? {
               status: userMission.status,
               progress: userMission.progress,
@@ -132,7 +135,16 @@ export function createMissionsRouter(deps) {
       if (!result.ok) {
         return res.status(result.status).json({ success: false, message: result.message });
       }
-      res.json({ success: true, data: result.results });
+      // Achievement auto-check
+      let achievements_unlocked = [];
+      if (achievementService) {
+        try {
+          const stats = await achievementService.getUserStats(userId);
+          const unlocked = await achievementService.checkAndUnlockAchievements(userId, 'mission_complete', stats);
+          achievements_unlocked = (unlocked || []).map(a => ({ id: a.id, name_en: a.name_en, xp_reward: a.xp_reward, coin_reward: a.coin_reward }));
+        } catch (_) {}
+      }
+      res.json({ success: true, data: { ...result.results, achievements_unlocked } });
     })
   );
 

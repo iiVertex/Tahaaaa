@@ -34,6 +34,45 @@ export async function getRecommendations() {
   return request(() => api.get('/ai/recommendations'), AIRecommendationsSchema, { insights: [], suggested_missions: [] });
 }
 
+// Dedicated Insights endpoint (alias to recommendations.insights)
+export async function getAIInsights() {
+  const data = await request(() => api.get('/ai/recommendations'), AIRecommendationsSchema, { insights: [], suggested_missions: [] });
+  return (data as any)?.insights || [];
+}
+
+// Offers / Products
+export async function getPrequalifiedOffers() {
+  const r = await getRecommendations();
+  return (r as any)?.product_recommendations || [];
+}
+
+// Products
+export async function getProductsCatalog() {
+  const d = await request(() => api.get('/products/catalog')) as any;
+  return d?.products || d?.data?.products || [];
+}
+export async function getBundleSavings(productIds: string[]) {
+  return request(() => api.post('/products/bundle-savings', { product_ids: productIds }));
+}
+
+// Quotes
+export async function startQuote(payload: any) {
+  return request(() => api.post('/quotes/start', payload));
+}
+export async function getQuoteStatus(id: string) {
+  return request(() => api.get(`/quotes/${id}/status`));
+}
+
+// Referrals
+export async function shareReferral() {
+  return request(() => api.post('/referrals/share', {}));
+}
+
+// Analytics
+export async function trackEvent(name: string, props?: any) {
+  try { await api.post('/analytics/events', { name, props, ts: new Date().toISOString() }); } catch {}
+}
+
 // Rewards
 export async function getRewards() {
   const raw = await request(() => api.get('/rewards')) as any;
@@ -62,5 +101,15 @@ export async function getProfile() {
 }
 export async function updateProfile(payload: any) {
   return request(() => api.put('/profile', payload));
+}
+
+// Achievements
+export async function getAchievements() {
+  const d = await request(() => api.get('/achievements')) as any;
+  return d?.achievements || d?.data?.achievements || [];
+}
+export async function getUserAchievements() {
+  const d = await request(() => api.get('/achievements/user')) as any;
+  return d?.user_achievements || d?.data?.user_achievements || [];
 }
 

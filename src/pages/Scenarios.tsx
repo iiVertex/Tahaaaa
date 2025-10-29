@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { simulateScenario } from '@/lib/api';
+import { useTranslation } from 'react-i18next';
+import { DatePalmIcon } from '@/components/QatarAssets';
+import MajlisLayout from '@/components/MajlisLayout';
 
 export default function Scenarios() {
+  const { t } = useTranslation();
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -13,20 +17,27 @@ export default function Scenarios() {
       });
       setResult(data?.data || data);
     } catch (e: any) {
-      setResult({ error: e?.message || 'Failed' });
+      setResult({ error: t('errors.simulateScenario', { message: e?.message || '' }) });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div>
-      <h2>Scenarios</h2>
-      <button onClick={run} disabled={loading}>{loading ? 'Simulating...' : 'Simulate'}</button>
-      <pre style={{ background: '#111418', padding: 12, borderRadius: 8, marginTop: 12 }}>
-        {JSON.stringify(result, null, 2)}
-      </pre>
-    </div>
+    <MajlisLayout titleKey="scenarios.title" icon={<DatePalmIcon size={18} color="var(--qic-secondary)" />}>
+      <button onClick={run} disabled={loading}>{loading ? t('scenarios.simulating') : t('simulate')}</button>
+      {!result && (
+        <div className="qic-card-majlis" style={{ padding: 12, marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <DatePalmIcon size={18} color="var(--qic-secondary)" />
+          <div>{t('scenarios.empty')}</div>
+        </div>
+      )}
+      {result && (
+        <pre style={{ background: '#111418', padding: 12, borderRadius: 8, marginTop: 12 }}>
+          {JSON.stringify(result, null, 2)}
+        </pre>
+      )}
+    </MajlisLayout>
   );
 }
 

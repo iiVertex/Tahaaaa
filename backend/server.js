@@ -84,21 +84,18 @@ app.use(notFoundHandler);
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
-// Start server with automatic port fallback to avoid EADDRINUSE during dev
-function start(port, attemptsLeft = 3) {
+// Deterministic server start: bind once to PORT; if in use, exit (avoids port hopping)
+function startDeterministic(port) {
   const server = app.listen(port, () => {
     PORT = port;
     logger.info(`QIC Backend Server running on port ${PORT}`);
     logger.info(`Environment: ${process.env.NODE_ENV}`);
     logger.info(`CORS Origin: ${process.env.CORS_ORIGIN}`);
   });
-  
   server.on('error', (err) => {
-    if (err?.code === 'EADDRINUSE' && attemptsLeft > 0) {
-      const nextPort = port + 1;
-      logger.warn(`Port ${port} in use. Retrying on ${nextPort}...`);
-      server.close();
-      setTimeout(() => start(nextPort, attemptsLeft - 1), 500);
+    if (err?.code === 'EADDRINUSE') {
+      logger.error(`Port ${port} in use. Set PORT to a free port or stop the other process.`);
+      process.exit(1);
     } else {
       logger.error('Failed to start server', { error: err?.message, code: err?.code });
       process.exit(1);
@@ -106,7 +103,7 @@ function start(port, attemptsLeft = 3) {
   });
 }
 
-start(PORT);
+startDeterministic(PORT);
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

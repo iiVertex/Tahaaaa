@@ -59,8 +59,8 @@ CREATE TABLE lifescore_history (
         'mission_complete', 'scenario_penalty', 'streak_bonus', 'achievement_reward',
         'manual_update', 'daily_bonus', 'weekly_bonus', 'onboarding_complete'
     )),
-    mission_id UUID REFERENCES missions(id), -- optional foreign key
-    achievement_id UUID REFERENCES achievements(id), -- optional foreign key
+    mission_id UUID, -- optional: FK to missions(id) intentionally omitted for one-pass creation
+    achievement_id UUID, -- optional: FK to achievements(id) intentionally omitted for one-pass creation
     change_amount INTEGER GENERATED ALWAYS AS (new_score - old_score) STORED,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -918,6 +918,26 @@ COMMENT ON TABLE onboarding_responses IS 'Quiz responses feeding into AI persona
 
 
 
+
+
+-- ----------------------------------------------------------------------------
+-- POST-CREATION FOREIGN KEYS (to ensure one-pass execution in Supabase)
+-- ----------------------------------------------------------------------------
+
+-- Restore optional references now that dependent tables exist
+ALTER TABLE lifescore_history
+  ADD CONSTRAINT fk_lifescore_history_mission
+    FOREIGN KEY (mission_id)
+    REFERENCES missions(id)
+    ON DELETE SET NULL
+    DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE lifescore_history
+  ADD CONSTRAINT fk_lifescore_history_achievement
+    FOREIGN KEY (achievement_id)
+    REFERENCES achievements(id)
+    ON DELETE SET NULL
+    DEFERRABLE INITIALLY IMMEDIATE;
 
 -- User engagement summary
 

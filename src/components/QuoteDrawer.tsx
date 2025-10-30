@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { startQuote } from '@/lib/api';
+import { trackFeatureUsageThrottled } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { useTranslation } from 'react-i18next';
+import { useCoins } from '@/lib/coins';
 
 export default function QuoteDrawer({ open, onClose, productId }:{ open: boolean; onClose: ()=>void; productId?: string }) {
   const { t } = useTranslation();
+  const { addCoins } = useCoins();
   const [age, setAge] = useState('');
   const [city, setCity] = useState('');
   const [busy, setBusy] = useState(false);
@@ -23,8 +26,11 @@ export default function QuoteDrawer({ open, onClose, productId }:{ open: boolean
             setBusy(true);
             try {
               track('quote_start', { product_id: productId });
+              await trackFeatureUsageThrottled('quote_start', { product_id: productId });
               await startQuote({ product_id: productId, inputs: { age, city } });
               track('quote_complete', { product_id: productId });
+              await trackFeatureUsageThrottled('quote_complete', { product_id: productId });
+              addCoins(10);
               onClose();
             } finally { setBusy(false); }
           }}>{busy ? (t('quote.starting') || 'Starting…') : (t('quote.cta') || 'Get Estimate')}</button>

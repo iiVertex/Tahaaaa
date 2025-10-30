@@ -41,8 +41,8 @@ router.post('/track/:code', strictRateLimit, asyncHandler(async (req, res) => {
   }
   if (!updated) {
     const entry = referrals.get(code);
-    if (!entry) return res.status(404).json({ success: false, message: 'Invalid referral code' });
-    entry.clicks += 1;
+  if (!entry) return res.status(404).json({ success: false, message: 'Invalid referral code' });
+  entry.clicks += 1;
   }
   logger.info('referral_click', { code });
   res.json({ success: true });
@@ -67,8 +67,8 @@ router.post('/install/:code', strictRateLimit, asyncHandler(async (req, res) => 
   }
   if (!updated) {
     const entry = referrals.get(code);
-    if (!entry) return res.status(404).json({ success: false, message: 'Invalid referral code' });
-    entry.installs += 1;
+  if (!entry) return res.status(404).json({ success: false, message: 'Invalid referral code' });
+  entry.installs += 1;
     referralData = entry;
   }
 

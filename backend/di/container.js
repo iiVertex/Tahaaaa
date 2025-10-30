@@ -36,21 +36,21 @@ export function buildContainer() {
   const gamification = new GamificationService(engine, { users: repos.users });
 
   // Services
-        const services = {
-          gamification,
-          ai: aiService,
-          mission: new MissionService(repos, gamification),
-          reward: new RewardService(repos),
-          leaderboard: new LeaderboardService(repos.leaderboard),
-          profile: new ProfileService(repos, gamification),
-          onboarding: new OnboardingService(repos, gamification),
-          scenario: new ScenarioService(repos),
+  const services = {
+    gamification,
+    ai: aiService,
+    mission: new MissionService(repos, gamification),
+    reward: new RewardService(repos),
+    leaderboard: new LeaderboardService(repos.leaderboard),
+    profile: new ProfileService(repos, gamification),
+    onboarding: new OnboardingService(repos, gamification),
+    scenario: new ScenarioService(repos),
           product: new ProductService({ profile: new ProfileService(repos, gamification) }),
           achievement: new AchievementService(db, gamification),
           retention: new RetentionService(db),
           multiproduct: new MultiProductService(db),
           ecosystem: new EcosystemService(db)
-        };
+  };
 
   return { repos, services };
 }

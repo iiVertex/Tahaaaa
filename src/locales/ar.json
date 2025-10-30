@@ -64,6 +64,8 @@
   "profile.title": "الملف",
   "profile.saved": "تم الحفظ",
   "profile.saveFailed": "فشل الحفظ",
+  "saving": "جارٍ الحفظ…",
+  "profile.prefsHint": "تُخصص تفضيلاتك المهام والعروض لك.",
   "social.title": "اجتماعي",
   "social.empty": "لا يوجد نشاط اجتماعي بعد.",
   "achievements.title": "الإنجازات",
@@ -101,7 +103,16 @@
   "rewards.redeemFailed": "فشل الاستبدال",
   "rewards.referralReady": "الرابط جاهز",
   "rewards.referralFailed": "فشل الرابط",
-  "rewards.shareReferral": "مشاركة الإحالة"
+  "rewards.shareReferral": "مشاركة الإحالة",
+  "spotlight": "تسليط الضوء",
+  "tooltip.beginMission": "ابدأ المهمة",
+  "tooltip.markComplete": "ضع علامة مكتمل",
+  "completing": "جاري الإكمال…",
+  "done": "تم",
+  "ai.rationale": "مبرر الذكاء الاصطناعي",
+  "purchase.record": "تسجيل عملية الشراء",
+  "purchase.recorded": "تم تسجيل الشراء",
+  "purchase.failed": "فشل تسجيل الشراء"
 }
 
 

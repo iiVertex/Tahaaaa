@@ -141,7 +141,9 @@ export const validateQuery = (schema) => {
       });
     }
 
-    req.query = value;
+    // Express 5 Request.query is a getter-only; mutate instead of reassigning
+    Object.keys(req.query || {}).forEach((k) => { delete req.query[k]; });
+    Object.assign(req.query, value);
     next();
   };
 };

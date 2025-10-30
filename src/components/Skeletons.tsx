@@ -8,7 +8,7 @@ export function CardSkeleton() {
   return (
     <div className="qic-card" style={{ padding: 12, display: 'grid', gap: 8, position: 'relative', overflow: 'hidden' }}>
       <div style={{
-        position: 'absolute', inset: 0,
+        position: 'absolute', inset: 0, pointerEvents: 'none',
         background: 'linear-gradient(90deg, rgba(68,64,151,0.08) 0%, rgba(255,215,0,0.18) 50%, rgba(68,64,151,0.08) 100%)',
         backgroundSize: '200% 100%',
         transform: 'translateX(-100%)', animation: 'qic-shimmer 1.6s infinite'

@@ -18,9 +18,14 @@ export class MissionService {
   }
 
   async startMission(userId, missionId) {
-    const mission = await this.missionsRepo.getById(missionId);
+    let mission = await this.missionsRepo.getById(missionId);
     if (!mission) {
-      return { ok: false, status: 404, message: 'Mission not found' };
+      // In development or when DB not yet seeded, allow starting ad-hoc mission IDs
+      if (process.env.NODE_ENV !== 'production') {
+        mission = { id: missionId, title_en: missionId, category: 'health', difficulty: 'easy', xp_reward: 10, lifescore_impact: 2 };
+      } else {
+        return { ok: false, status: 404, message: 'Mission not found' };
+      }
     }
     const active = await this.userMissionsRepo.byUser(userId, 'active');
     const exists = active.find(m => m.mission_id === missionId);

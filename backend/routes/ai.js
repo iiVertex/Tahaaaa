@@ -7,10 +7,8 @@ import { strictRateLimit } from '../middleware/security.js';
 // Use DI-injected profile service via factory
 import { logger } from '../utils/logger.js';
 
-// Router will be created inside factory to capture DI deps
+const isDev = process.env.NODE_ENV !== 'production';
 
-// Get AI recommendations
-// Factory router
 /** @param {{ ai: any, profile: import('../services/profile.service.js').ProfileService, product?: import('../services/product.service.js').ProductService }} deps */
 export function createAiRouter(deps) {
   const router = express.Router();
@@ -20,23 +18,20 @@ export function createAiRouter(deps) {
 
   router.get('/recommendations', 
   authenticateUser,
-  strictRateLimit,
+  ...(isDev ? [] : [strictRateLimit]),
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const { type = 'mission' } = req.query;
 
     try {
-      // Get user profile for personalized recommendations
       const composite = await profileService.getProfile(userId);
       const profileData = composite?.userProfile?.profile_json || {};
 
-      // Get AI outputs: insights + suggested missions
       const [insights, suggestedMissionsRaw] = await Promise.all([
         aiService.predictInsights(userId),
         aiService.recommendAdaptiveMissions(userId, profileData)
       ]);
 
-      // Shape suggested missions for frontend (reason -> ai_rationale)
       const suggestedMissions = (suggestedMissionsRaw || []).map((m) => ({
         ...m,
         ai_rationale: m.reason || 'Recommended for your profile',
@@ -50,7 +45,6 @@ export function createAiRouter(deps) {
         missions: suggestedMissions?.length || 0
       });
 
-      // Dynamic product recommendations via ProductService
       let productRecommendations = [];
       try {
         if (productService) {
@@ -93,8 +87,7 @@ export function createAiRouter(deps) {
     }
   }))
 
-
-// Get AI recommendations with context
+  // Get AI recommendations with context
   router.post('/recommendations', 
   authenticateUser,
   strictRateLimit,
@@ -104,14 +97,9 @@ export function createAiRouter(deps) {
     const { context, type = 'mission' } = req.body;
 
     try {
-      // Get user profile
       const composite = await profileService.getProfile(userId);
       const profileData = composite?.userProfile?.profile_json || {};
-
-      // Add context to profile for more personalized recommendations
       const contextualProfile = { ...profileData, context };
-
-      // Get AI outputs: insights + suggested missions
       const [insights, suggestedMissions] = await Promise.all([
         aiService.predictInsights(userId),
         aiService.recommendAdaptiveMissions(userId, contextualProfile)
@@ -120,7 +108,7 @@ export function createAiRouter(deps) {
       logger.info('Contextual AI recommendations generated', {
         userId,
         type,
-        context: context?.substring(0, 100), // Log first 100 chars
+        context: context?.substring(0, 100),
         insights: insights?.length || 0,
         missions: suggestedMissions?.length || 0
       });
@@ -146,8 +134,7 @@ export function createAiRouter(deps) {
     }
   }))
 
-
-// Generate AI profile
+  // Generate AI profile
   router.post('/profile', 
   authenticateUser,
   strictRateLimit,
@@ -163,7 +150,6 @@ export function createAiRouter(deps) {
         });
       }
 
-      // Generate AI profile
       const aiProfile = await aiService.generateAIProfile(onboardingData);
 
       logger.info('AI profile generated', {
@@ -189,8 +175,7 @@ export function createAiRouter(deps) {
     }
   }))
 
-
-// Simulate scenario
+  // Simulate scenario
   router.post('/scenarios/simulate', 
   authenticateUser,
   strictRateLimit,
@@ -206,17 +191,9 @@ export function createAiRouter(deps) {
         });
       }
 
-      // Get user profile for context
       const composite = await profileService.getProfile(userId);
       const profileData = composite?.userProfile?.profile_json || {};
-
-      // Add user context to scenario inputs
-      const contextualInputs = {
-        ...scenarioInputs,
-        user_profile: profileData
-      };
-
-      // Get AI prediction
+      const contextualInputs = { ...scenarioInputs, user_profile: profileData };
       const prediction = await aiService.predictScenarioOutcome(contextualInputs);
 
       logger.info('Scenario simulation completed', {
@@ -244,26 +221,18 @@ export function createAiRouter(deps) {
     }
   }))
 
-
-// Get AI insights for dashboard
+  // Get AI insights for dashboard
   router.get('/insights', 
   authenticateUser,
   asyncHandler(async (req, res) => {
     const userId = req.user.id;
 
     try {
-      // Get user profile and stats
       const composite = await profileService.getProfile(userId);
       const profileData = composite?.userProfile?.profile_json || {};
-
-      // Get user's recent activity (placeholder for now)
       const userMissions = [];
       const recentMissions = [];
-
-      // Generate insights (static + from aiService in future)
       const insights = [];
-
-      // LifeScore insights
       const lifescore = composite?.stats?.lifescore || 0;
       if (lifescore < 50) {
         insights.push({
@@ -275,8 +244,6 @@ export function createAiRouter(deps) {
           icon: '📈'
         });
       }
-
-      // Streak insights
       const currentStreak = composite?.stats?.current_streak || 0;
       if (currentStreak === 0) {
         insights.push({
@@ -288,8 +255,6 @@ export function createAiRouter(deps) {
           icon: '🔥'
         });
       }
-
-      // Integration insights
       const integrations = profileData.integrations || [];
       if (integrations.includes('QIC Health Portal')) {
         insights.push({
@@ -302,31 +267,16 @@ export function createAiRouter(deps) {
         });
       }
 
-      logger.info('AI insights generated', {
-        userId,
-        insightCount: insights.length
-      });
+      logger.info('AI insights generated', { userId, insightCount: insights.length });
 
-      res.json({
-        success: true,
-        data: {
-          insights,
-          generated_at: new Date().toISOString()
-        }
-      });
+      res.json({ success: true, data: { insights, generated_at: new Date().toISOString() } });
 
     } catch (error) {
       logger.error('Error getting AI insights:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to get AI insights',
-        error: error.message
-      });
+      res.status(500).json({ success: false, message: 'Failed to get AI insights', error: error.message });
     }
-  })
-);
+  }));
 
-  // Get AI chat response (for future AI assistant)
   router.post('/chat', 
     authenticateUser,
     strictRateLimit,
@@ -336,17 +286,10 @@ export function createAiRouter(deps) {
 
       try {
         if (!message) {
-          return res.status(400).json({
-            success: false,
-            message: 'Message is required'
-          });
+          return res.status(400).json({ success: false, message: 'Message is required' });
         }
-
-        // Get user profile for context via DI service
         const composite = await profileService.getProfile(userId);
         const profileData = composite?.userProfile?.profile_json || {};
-
-        // Mock AI response (replace with real AI service)
         const responses = [
           "I can help you find the perfect mission to boost your LifeScore!",
           "Based on your profile, I recommend focusing on health missions.",
@@ -354,34 +297,15 @@ export function createAiRouter(deps) {
           "Your streak is looking good! Don't forget to complete a mission today.",
           "I notice you haven't synced your health data yet. Would you like help with that?"
         ];
-
         const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-
-        logger.info('AI chat response generated', {
-          userId,
-          messageLength: message.length,
-          context
-        });
-
-        res.json({
-          success: true,
-          data: {
-            response: randomResponse,
-            timestamp: new Date().toISOString(),
-            context,
-            profile_used: Object.keys(profileData).length
-          }
-        });
+        logger.info('AI chat response generated', { userId, messageLength: message.length, context });
+        res.json({ success: true, data: { response: randomResponse, timestamp: new Date().toISOString(), context, profile_used: Object.keys(profileData).length } });
 
       } catch (error) {
         logger.error('Error getting AI chat response:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Failed to get AI response',
-          error: error.message
-        });
+        res.status(500).json({ success: false, message: 'Failed to get AI response', error: error.message });
       }
-    }))
+    }));
 
   return router;
 }

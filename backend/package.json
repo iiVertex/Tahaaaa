@@ -21,6 +21,7 @@
     "joi": "^18.0.1",
     "jsonwebtoken": "^9.0.2",
     "openai": "^6.7.0",
+    "vite_react_shadcn_ts": "file:..",
     "winston": "^3.18.3"
   },
   "devDependencies": {

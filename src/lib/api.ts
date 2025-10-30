@@ -34,6 +34,11 @@ export async function getRecommendations() {
   return request(() => api.get('/ai/recommendations'), AIRecommendationsSchema, { insights: [], suggested_missions: [] });
 }
 
+// AI recommendations with context (preferences, etc.)
+export async function getRecommendationsContext(context?: any) {
+  return request(() => api.post('/ai/recommendations', { context }), AIRecommendationsSchema, { insights: [], suggested_missions: [] });
+}
+
 // Dedicated Insights endpoint (alias to recommendations.insights)
 export async function getAIInsights() {
   const data = await request(() => api.get('/ai/recommendations'), AIRecommendationsSchema, { insights: [], suggested_missions: [] });
@@ -83,8 +88,6 @@ export async function redeemReward(id: string) {
   return request(() => api.post('/rewards/redeem', { rewardId: id }));
 }
 
-// Skill Tree removed per Track 1 alignment
-
 // Social
 export async function getSocialFeed() {
   // use leaderboard and friends as a basic feed
@@ -111,5 +114,23 @@ export async function getAchievements() {
 export async function getUserAchievements() {
   const d = await request(() => api.get('/achievements/user')) as any;
   return d?.user_achievements || d?.data?.user_achievements || [];
+}
+
+// Purchases (multiproduct)
+export async function recordPurchase(purchase: { product_id: string; product_type: string; product_name: string; purchase_amount: number; currency?: string; policy_number?: string; metadata?: any; }) {
+  return request(() => api.post('/multiproduct/purchase', purchase));
+}
+
+// Ecosystem feature usage (throttled)
+const featureLastSent = new Map<string, number>();
+export async function trackFeatureUsage(featureName: string, metadata?: any) {
+  try { await api.post('/ecosystem/track', { featureName, metadata }); } catch {}
+}
+export async function trackFeatureUsageThrottled(featureName: string, metadata?: any, windowMs = 3000) {
+  const now = Date.now();
+  const last = featureLastSent.get(featureName) || 0;
+  if (now - last < windowMs) return;
+  featureLastSent.set(featureName, now);
+  try { await api.post('/ecosystem/track', { featureName, metadata }); } catch {}
 }
 

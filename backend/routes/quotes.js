@@ -46,7 +46,7 @@ router.post('/start', authenticateUser, strictRateLimit, asyncHandler(async (req
       quotes.set(id, session);
     }
   } else {
-    quotes.set(id, session);
+  quotes.set(id, session);
   }
   res.json({ success: true, data: { quote_session_id: id, product_id, price_range, next_step: 'provide_details' } });
 }));

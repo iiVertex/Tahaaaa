@@ -63,12 +63,17 @@ button:focus-visible, a:focus-visible {
 .qic-pattern-stars {
   background-image: var(--pattern-star);
   background-size: 12px 12px;
+  pointer-events: none;
 }
 
 .qic-pattern-mosaic {
   background-image: var(--pattern-mosaic);
   background-size: 16px 16px;
+  pointer-events: none;
 }
+
+/* Utility to mark any decorative/non-interactive overlay */
+.qic-noninteractive { pointer-events: none !important; }
 
 /* Responsive grids */
 .grid-modules { display: grid; gap: 16px; }

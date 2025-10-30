@@ -1,28 +1,28 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { simulateScenario, getProfile, startMission, completeMission, getRecommendations } from '../lib/api';
+import { simulateScenario, getProfile, startMission, completeMission, getRecommendationsContext } from '../lib/api';
 import ScenarioForm from '@/components/ScenarioForm';
 import MajlisLayout from '@/components/MajlisLayout';
 import { DatePalmIcon } from '@/components/QatarAssets';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCoins } from '@/lib/coins';
 
 export default function Showcase() {
   const { t } = useTranslation();
+  const qc = useQueryClient();
+  const { coins, addCoins } = useCoins();
   const [loading, setLoading] = React.useState(false);
   const [result, setResult] = React.useState<any>(null);
-  const [profile, setProfile] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
-  const [recommendations, setRecommendations] = React.useState<any>(null);
-  const [leaderboard, setLeaderboard] = React.useState<any[]>([]);
 
-  React.useEffect(() => {
-    getProfile().then(setProfile).catch(() => {});
-    getRecommendations().then(setRecommendations).catch(() => {});
-    fetch(((import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3001/api') + '/social/leaderboard')
-      .then(r => r.json())
-      .then(j => setLeaderboard(j?.data?.leaderboard || []))
-      .catch(() => {});
-  }, []);
+  const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: getProfile });
+  const prefs = (profile as any)?.userProfile?.profile_json?.preferences || null;
+  const { data: recommendations } = useQuery({
+    queryKey: ['ai','recommendations', prefs],
+    queryFn: () => getRecommendationsContext({ preferences: prefs })
+  });
+  // Social leaderboard removed in this phase to eliminate 401s and unnecessary calls.
 
   async function onSimulate(values: any) {
     setLoading(true); setError(null);
@@ -30,8 +30,7 @@ export default function Showcase() {
       const response = await simulateScenario(values);
       const prediction = response?.data || response;
       setResult(prediction);
-      const updated = await getProfile();
-      setProfile(updated);
+      await qc.invalidateQueries({ queryKey: ['profile'] });
       setMessage(t('showcase.simulationComplete'));
     } catch (err: any) {
       setError(t('errors.simulateScenario', { message: err?.message || '' }));
@@ -42,8 +41,8 @@ export default function Showcase() {
     setLoading(true); setError(null);
     try {
       await startMission(id);
-      const updated = await getProfile();
-      setProfile(updated);
+      addCoins(5); // UI-only reward for starting
+      await qc.invalidateQueries({ queryKey: ['profile'] });
       setMessage(t('showcase.missionStarted'));
     } catch (err: any) { setError(t('errors.startMission', { message: err?.message || '' })); }
     finally { setLoading(false); }
@@ -53,15 +52,15 @@ export default function Showcase() {
     setLoading(true); setError(null);
     try {
       await completeMission(id);
-      const updated = await getProfile();
-      setProfile(updated);
+      addCoins(10); // UI-only reward for completion
+      await qc.invalidateQueries({ queryKey: ['profile'] });
       setMessage(t('showcase.missionCompleted'));
     } catch (err: any) { setError(t('errors.completeMission', { message: err?.message || '' })); }
     finally { setLoading(false); }
   }
 
   return (
-    <MajlisLayout titleKey="showcase.title" icon={<DatePalmIcon size={18} color="var(--qic-secondary)" />}>
+    <MajlisLayout titleKey="showcase.title" icon={<DatePalmIcon size={18} color="var(--qic-secondary)" />}> 
       {error && <div style={{ color: 'salmon' }}>{error}</div>}
       {message && <div style={{ color: 'seagreen' }}>{message}</div>}
       <ScenarioForm onSubmit={onSimulate} loading={loading} />
@@ -75,7 +74,10 @@ export default function Showcase() {
           <h4>{t('missions.suggested')}</h4>
           <div style={{ display: 'grid', gap: 8 }}>
             {result.suggested_missions?.map((m: any) => (
-              <div key={m.id} className="qic-card" style={{ padding: 12 }}>
+                  <div key={m.id} className="qic-card" style={{ padding: 12, position: 'relative' }}>
+                    {Array.isArray((profile as any)?.userProfile?.profile_json?.preferences?.interests) && (profile as any).userProfile.profile_json.preferences.interests.includes((m.category||'').toLowerCase()) && (
+                      <div aria-label="AI Pick" style={{ position: 'absolute', top: 8, left: 8, background: 'var(--qic-secondary)', color: 'white', fontSize: 10, padding: '2px 6px', borderRadius: 6 }}>{t('ai.pickLabel')}</div>
+                    )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div><b>{m.title}</b> · {m.category} · {m.difficulty}</div>
@@ -123,27 +125,14 @@ export default function Showcase() {
         </div>
       )}
 
-      {profile && (
+      {/* Coins status (UI-only) */}
         <div className="qic-card" style={{ padding: 16 }}>
-          <h3>{t('showcase.status')}</h3>
-          <div>{t('stats.lifescore') || 'LifeScore'}: <b>{profile?.stats?.lifescore ?? profile?.user?.lifescore ?? 0}</b></div>
-          <div>{t('stats.xp')}: <b>{profile?.stats?.xp ?? profile?.user?.xp ?? 0}</b></div>
-          <div>{t('stats.level')}: <b>{profile?.stats?.level ?? profile?.user?.level ?? 1}</b></div>
+        <h3>{t('showcase.status')}</h3>
+        <div>Coins: <b>{coins}</b></div>
+        <div>{t('stats.xp')}: <b>{profile?.stats?.xp ?? profile?.user?.xp ?? 0}</b></div>
+        <div>{t('stats.level')}: <b>{profile?.stats?.level ?? profile?.user?.level ?? 1}</b></div>
         </div>
-      )}
 
-      {!!leaderboard.length && (
-        <div className="qic-card" style={{ padding: 16 }}>
-          <h3>{t('showcase.leaderboard')}</h3>
-          <ol style={{ paddingLeft: 16 }}>
-            {leaderboard.map((u: any) => (
-              <li key={u.id}>
-                <b>{u.username || u.id}</b> — {t('showcase.leaderboardEntry', { lifescore: u.lifescore, xp: u.xp })}
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
     </MajlisLayout>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import LifeScoreRing from '@/components/LifeScoreRing';
-import { health as healthApi, getProfile, getAIInsights, getRecommendations, getProductsCatalog, getBundleSavings, startMission, completeMission } from '@/lib/api';
+import { useCoins } from '@/lib/coins';
+import { health as healthApi, getProfile, getAIInsights, getRecommendationsContext, getProductsCatalog, getBundleSavings, startMission, completeMission } from '@/lib/api';
 import ProductOfferCard from '@/components/ProductOfferCard';
 import { track } from '@/lib/analytics';
 import QuoteDrawer from '@/components/QuoteDrawer';
@@ -18,6 +19,7 @@ import MajlisLayout from '@/components/MajlisLayout';
 
 export default function Health() {
   const { t } = useTranslation();
+  const { coins } = useCoins();
   const [status, setStatus] = useState<string>(t('status.checking'));
   const [life, setLife] = useState<number>(0);
   const [xp, setXp] = useState<number>(0);
@@ -33,6 +35,7 @@ export default function Health() {
   const { order } = usePersonalization();
   const [loading, setLoading] = useState<boolean>(true);
   const toast = useToast();
+  const [prefs, setPrefs] = useState<any>(null);
 
   useEffect(() => {
     setStatus(t('status.checking'));
@@ -44,25 +47,38 @@ export default function Health() {
       const lvl = (p as any)?.stats?.level ?? (p as any)?.user?.level ?? 1;
       const tr = (p as any)?.stats?.lifescoreTrend || 'flat';
       const st = (p as any)?.stats?.currentStreak ?? (p as any)?.user?.streak_days ?? 0;
-      setLife(ls); setXp(xpVal); setLevel(lvl); setTrend(tr); setStreak(st);
+      const pr = (p as any)?.userProfile?.profile_json?.preferences || null;
+      setLife(ls); setXp(xpVal); setLevel(lvl); setTrend(tr); setStreak(st); setPrefs(pr);
     }).catch(() => {});
+  }, [t]);
+
+  useEffect(() => {
+    // When prefs known (or null), load insights/recommendations/catalog
     Promise.all([
       getAIInsights().catch(()=>[]),
-      getRecommendations().catch(()=>({ suggested_missions: [], product_recommendations: [] })),
+      getRecommendationsContext({ preferences: prefs }).catch(()=>({ suggested_missions: [], product_recommendations: [] })),
       getProductsCatalog().catch(()=>[])
     ]).then(([i, r, catalog]: any)=>{
       setInsights(i || []);
-      setSuggested(r?.suggested_missions || []);
+      const rawSuggested = r?.suggested_missions || [];
+      const interests: string[] = Array.isArray(prefs?.interests) ? prefs.interests : [];
+      const diffPref = (prefs?.missionDifficulty || '').toLowerCase();
+      const scored = rawSuggested.map((m:any) => {
+        let score = 0;
+        if (interests.includes((m.category||'').toLowerCase())) score += 2;
+        if (diffPref && (m.difficulty||'').toLowerCase() === diffPref) score += 1;
+        return { m, score };
+      }).sort((a:any,b:any)=> b.score - a.score).map((x:any)=> x.m);
+      setSuggested(scored);
       const prs = r?.product_recommendations || [];
       setOffers(prs);
       prs.forEach((o:any)=> track('offer_view', { product_id: o.product_id }));
-      // compute a simple bundle suggestion using catalog
       const ids = (catalog as any[]).slice(0,2).map(p=>p.id);
       if (ids.length >= 2) {
         getBundleSavings(ids).then((b)=> setBundle({ ids, ...b })).catch(()=> setBundle(null));
       }
     }).finally(() => setLoading(false));
-  }, [t]);
+  }, [prefs]);
 
   const modules = useMemo(() => ({
     'offers-strip': (
@@ -80,7 +96,10 @@ export default function Health() {
     'health-summary': (
       <motion.section variants={cardEntranceVariants} initial="initial" animate="animate">
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <LifeScoreRing value={life} trend={trend} level={level} />
+          <div className="qic-card" style={{ padding: 12, borderRadius: 12, display: 'grid', gap: 6 }}>
+            <div style={{ fontSize: 12, color: 'var(--qic-muted)' }}>{t('rewards.coins') || 'Coins'}</div>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>{coins}</div>
+          </div>
           <div>
             <div>{t('stats.xp')}: <b>{xp}</b></div>
             <div>{t('stats.level')}: <b>{level}</b></div>
@@ -134,6 +153,7 @@ export default function Health() {
               <MissionCard key={m.id} mission={m}
                 onStart={(id)=>startMission(id).then(()=>toast.success(t('toast.missionStarted'), m.title_en || m.title || id)).catch((e)=>toast.error(t('toast.errorStart'), e?.message))}
                 onComplete={(id)=>completeMission(id).then(()=>toast.success(t('toast.missionCompleted'), `+${m.xp_reward ?? 10} XP`)).catch((e)=>toast.error(t('toast.errorComplete'), e?.message))}
+                aiPick={Array.isArray(prefs?.interests) && prefs.interests.includes((m.category||'').toLowerCase())}
               />
             ))}
             {suggested.length === 0 && (

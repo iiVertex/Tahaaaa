@@ -1,6 +1,6 @@
 import helmet from 'helmet';
 import cors from 'cors';
-import { rateLimit } from 'express-rate-limit';
+import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 
 // CORS configuration
 const isDev = process.env.NODE_ENV !== 'production';
@@ -30,12 +30,13 @@ export const corsOptions = {
 // Rate limiting configuration
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 100,
+  limit: isDev ? 1000 : 100,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req, res) => req.headers['x-session-id'] || ipKeyGenerator(req, res),
   message: {
     success: false,
-    message: 'Too many requests from this IP, please try again later.'
+    message: 'Too many requests from this client, please try again later.'
   }
 });
 
@@ -77,6 +78,7 @@ export const strictRateLimit = rateLimit({
   limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req, res) => req.headers['x-session-id'] || ipKeyGenerator(req, res),
   message: {
     success: false,
     message: 'Rate limit exceeded for this operation.'

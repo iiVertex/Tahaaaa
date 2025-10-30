@@ -64,6 +64,8 @@
   "profile.title": "Profile",
   "profile.saved": "Saved",
   "profile.saveFailed": "Failed to save",
+  "saving": "Saving…",
+  "profile.prefsHint": "Your preferences personalize missions and offers.",
   "social.title": "Social",
   "social.empty": "No social activity yet.",
   "achievements.title": "Achievements",
@@ -101,7 +103,16 @@
   "rewards.redeemFailed": "Redeem failed",
   "rewards.referralReady": "Referral ready",
   "rewards.referralFailed": "Referral failed",
-  "rewards.shareReferral": "Share referral"
+  "rewards.shareReferral": "Share referral",
+  "spotlight": "Spotlight",
+  "tooltip.beginMission": "Begin mission",
+  "tooltip.markComplete": "Mark as complete",
+  "completing": "Completing…",
+  "done": "Done",
+  "ai.rationale": "AI rationale",
+  "purchase.record": "Record Purchase",
+  "purchase.recorded": "Purchase recorded",
+  "purchase.failed": "Purchase failed"
 }
 
 

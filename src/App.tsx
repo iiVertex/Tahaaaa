@@ -1,12 +1,12 @@
 import React from 'react';
-import { Routes, Route, NavLink } from 'react-router-dom';
+import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
+import { trackFeatureUsageThrottled } from '@/lib/api';
 const Health = React.lazy(() => import('./pages/Health'));
 const Play = React.lazy(() => import('./pages/Play'));
 const Rewards = React.lazy(() => import('./pages/Rewards'));
 const Missions = React.lazy(() => import('./pages/Missions'));
 const Achievements = React.lazy(() => import('./pages/Achievements'));
 const Profile = React.lazy(() => import('./pages/Profile'));
-const Social = React.lazy(() => import('./pages/Social'));
 const Scenarios = React.lazy(() => import('./pages/Scenarios'));
 const Showcase = React.lazy(() => import('./pages/Showcase'));
 import { ToastProvider } from '@/components/Toast';
@@ -16,6 +16,11 @@ import { useTranslation } from 'react-i18next';
 
 export default function App() {
   const { t } = useTranslation();
+  const location = useLocation();
+  React.useEffect(() => {
+    const path = location.pathname || '/';
+    trackFeatureUsageThrottled('nav', { path });
+  }, [location]);
   const links = [
     { to: '/', label: t('nav.home') },
     { to: '/play', label: t('play.title') },
@@ -23,7 +28,6 @@ export default function App() {
     { to: '/rewards', label: t('rewards.title') },
     { to: '/achievements', label: t('achievements.title') },
     { to: '/scenarios', label: t('scenarios.title') },
-    { to: '/social', label: t('social.title') },
     { to: '/profile', label: t('profile.title') },
     { to: '/showcase', label: t('showcase.title') }
   ];
@@ -59,7 +63,6 @@ export default function App() {
               <Route path="/rewards" element={<Rewards />} />
               <Route path="/achievements" element={<Achievements />} />
               <Route path="/scenarios" element={<Scenarios />} />
-              <Route path="/social" element={<Social />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/showcase" element={<Showcase />} />
             </Routes>

@@ -15,8 +15,19 @@ export default defineConfig({
       }
     }
   },
-  plugins: [react()],
+  plugins: [
+    react({
+      jsxRuntime: 'automatic',
+      fastRefresh: true,
+    })
+  ],
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    css: true,
+  },
 });
 
 

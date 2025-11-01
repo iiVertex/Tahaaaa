@@ -5,7 +5,22 @@ export class UsersRepo {
     this.db = database;
   }
 
-  getById(userId) { return this.db.getUserById(userId); }
+  async getById(userId) { 
+    const result = await this.db.getUserById(userId);
+    return result;
+  }
+
+  async getByClerkId(clerkId) {
+    if (this.db && typeof this.db.getUserByClerkId === 'function') {
+      return await this.db.getUserByClerkId(clerkId);
+    }
+    // Fallback: check mock database
+    if (this.db && this.db.users) {
+      return this.db.users.find(u => u.clerk_id === clerkId) || null;
+    }
+    return null;
+  }
+
   update(userId, updates) { return this.db.updateUser(userId, updates); }
 
   async adjustCoins(userId, delta) {
@@ -41,15 +56,21 @@ export class UsersRepo {
 
   // Profile operations
   async getUserProfile(userId) {
-    if (this.db.getUserProfile) return this.db.getUserProfile(userId);
+    if (this.db && typeof this.db.getUserProfile === 'function') {
+      return await this.db.getUserProfile(userId);
+    }
     return null;
   }
   async createUserProfile(userId, profileData) {
-    if (this.db.createUserProfile) return this.db.createUserProfile(userId, profileData);
+    if (this.db && typeof this.db.createUserProfile === 'function') {
+      return await this.db.createUserProfile(userId, profileData);
+    }
     return null;
   }
   async updateUserProfile(userId, profileData) {
-    if (this.db.updateUserProfile) return this.db.updateUserProfile(userId, profileData);
+    if (this.db && typeof this.db.updateUserProfile === 'function') {
+      return await this.db.updateUserProfile(userId, profileData);
+    }
     return null;
   }
 

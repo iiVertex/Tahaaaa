@@ -1,0 +1,499 @@
+{
+  "meta": {
+    "version": "1.0",
+    "last_updated": "2024-01-01",
+    "description": "QIC Insurance Terms & Conditions, Product Eligibility, Discount Rules, and Qatar-Specific Guidelines"
+  },
+  "products": {
+    "car": {
+      "eligibility": {
+        "age_min": 18,
+        "license_required": true,
+        "vehicle_age_limit": 15,
+        "qatar_specific": [
+          "Valid Qatari driving license required",
+          "Vehicle must be registered in Qatar",
+          "For cars >7 years old, only TPL (Third Party Liability) available",
+          "Agency repair option available for vehicles 1-3 years old"
+        ]
+      },
+      "discounts": {
+        "first_time_buyer": {
+          "amount": 0,
+          "description": "No discount for first-time car insurance buyers, but special rates available"
+        },
+        "no_claims": {
+          "years_3": 15,
+          "years_5": 25,
+          "years_7": 35,
+          "description": "No-claims bonus increases with consecutive claim-free years"
+        },
+        "nationality": {
+          "qatari": {
+            "base_discount": 10,
+            "description": "Qatari nationals receive 10% base discount on all car insurance"
+          },
+          "gcc": {
+            "base_discount": 5,
+            "description": "GCC nationals receive 5% base discount"
+          }
+        },
+        "multi_product": {
+          "with_home": 5,
+          "with_travel": 3,
+          "with_all_three": 10,
+          "description": "Bundle discounts when purchasing multiple QIC products"
+        }
+      },
+      "qatar_specific_rules": [
+        "Agency repair mandatory for new cars (0-1 year) in comprehensive coverage",
+        "GCC coverage available as add-on for frequent cross-border travel",
+        "Salik tag integration for easy premium calculation",
+        "TPI (Third Party Insurance) minimum coverage: QAR 100,000",
+        "Comprehensive coverage includes theft, fire, natural disasters per Qatari regulations"
+      ],
+      "profile_factors": {
+        "age": {
+          "18-25": {
+            "risk_multiplier": 1.3,
+            "recommendations": ["Higher premiums due to young driver risk", "Safe driving missions recommended"]
+          },
+          "26-40": {
+            "risk_multiplier": 1.0,
+            "recommendations": ["Standard rates apply", "Maintain no-claims for discounts"]
+          },
+          "41-60": {
+            "risk_multiplier": 0.9,
+            "recommendations": ["Mature driver discount eligible", "Consider comprehensive coverage"]
+          },
+          "60+": {
+            "risk_multiplier": 1.1,
+            "recommendations": ["Age-appropriate coverage", "Medical coverage add-on recommended"]
+          }
+        },
+        "budget": {
+          "under_1200": {
+            "recommended_coverage": "TPL",
+            "description": "Budget-conscious users should consider TPL only"
+          },
+          "1200-3000": {
+            "recommended_coverage": "Comprehensive",
+            "description": "Mid-range budget allows comprehensive coverage"
+          },
+          "3000+": {
+            "recommended_coverage": "Comprehensive with add-ons",
+            "description": "Higher budget allows premium coverage with GCC extension, agency repair"
+          }
+        },
+        "first_time_buyer": {
+          "eligibility": "All first-time buyers",
+          "benefits": [
+            "3 months FREE insurance if purchasing comprehensive coverage (promotion)",
+            "Educational resources about insurance basics",
+            "Dedicated support for claim process"
+          ],
+          "requirements": [
+            "Must not have owned car insurance in Qatar before",
+            "Valid Qatari driving license required",
+            "Vehicle must be registered in user's name"
+          ]
+        },
+        "vulnerabilities": {
+          "frequent_travel": {
+            "recommendation": "GCC coverage add-on",
+            "coverage_area": "All GCC countries"
+          },
+          "expensive_electronics": {
+            "recommendation": "Comprehensive coverage with accessories protection",
+            "coverage_limit": "Up to QAR 5,000 for after-market accessories"
+          }
+        }
+      }
+    },
+    "motorcycle": {
+      "eligibility": {
+        "age_min": 18,
+        "license_required": true,
+        "cc_limit": null,
+        "qatar_specific": [
+          "Valid Qatari motorcycle license required",
+          "Helmet requirement compliance check",
+          "Motorcycle must be registered in Qatar"
+        ]
+      },
+      "discounts": {
+        "first_time_buyer": {
+          "amount": 0,
+          "description": "Special rates for first-time motorcycle insurance buyers"
+        },
+        "no_claims": {
+          "years_3": 20,
+          "years_5": 30,
+          "description": "No-claims bonus for motorcycles"
+        },
+        "safety_course": {
+          "amount": 15,
+          "description": "15% discount for completing QIC-approved motorcycle safety course"
+        }
+      },
+      "qatar_specific_rules": [
+        "Helmet compliance mandatory for coverage",
+        "TPL minimum: QAR 100,000",
+        "Higher premiums for sport motorcycles (>600cc)"
+      ]
+    },
+    "travel": {
+      "eligibility": {
+        "age_min": 0,
+        "age_max": 85,
+        "qatar_specific": [
+          "Schengen visa compliance: Minimum EUR 30,000 medical coverage required",
+          "Coverage must be valid for entire travel period",
+          "Pre-existing conditions must be declared"
+        ]
+      },
+      "discounts": {
+        "multi_trip": {
+          "amount": 20,
+          "description": "Annual multi-trip policy: 20% discount vs. single trips"
+        },
+        "family": {
+          "amount": 15,
+          "description": "Family coverage discount (2+ travelers)"
+        },
+        "qatar_specific": {
+          "amount": 5,
+          "description": "Qatari residents receive 5% discount"
+        }
+      },
+      "qatar_specific_rules": [
+        "Schengen coverage: Minimum EUR 30,000 medical expense coverage mandatory for visa",
+        "Baggage coverage: Standard limit QAR 10,000, can be extended",
+        "Trip cancellation: Covered for Qatari national holidays",
+        "Winter sports: Available as add-on for skiing destinations",
+        "Pre-existing conditions: Must be declared; may require medical certificate"
+      ],
+      "profile_factors": {
+        "frequent_travel": {
+          "recommendation": "Annual multi-trip policy",
+          "savings": "Up to 20% vs. single trip policies"
+        },
+        "schengen_destination": {
+          "requirement": "EUR 30,000 minimum coverage",
+          "description": "Visa-compliant coverage for Schengen countries"
+        }
+      }
+    },
+    "home": {
+      "eligibility": {
+        "property_type": ["apartment", "villa", "townhouse"],
+        "qatar_specific": [
+          "Property must be in Qatar",
+          "Ownership or rental agreement required",
+          "Property age affects coverage options"
+        ]
+      },
+      "discounts": {
+        "security_system": {
+          "amount": 10,
+          "description": "10% discount for properties with certified security systems"
+        },
+        "first_time_buyer": {
+          "amount": 0,
+          "description": "Special introductory rates for first-time home insurance buyers"
+        },
+        "multi_year": {
+          "amount": 15,
+          "description": "15% discount for 3-year policy commitment"
+        }
+      },
+      "qatar_specific_rules": [
+        "Contents coverage: Standard QAR 100,000, customizable",
+        "Natural disasters: Covers sandstorms, flash floods (Qatar-specific risks)",
+        "Theft coverage: Enhanced for high-value electronics",
+        "Building coverage: Separate from contents, required for owners"
+      ],
+      "profile_factors": {
+        "renting": {
+          "recommended_coverage": "Contents only",
+          "description": "Renters should focus on contents insurance"
+        },
+        "owning": {
+          "recommended_coverage": "Building + Contents",
+          "description": "Property owners need comprehensive building and contents coverage"
+        }
+      }
+    },
+    "boat": {
+      "eligibility": {
+        "vessel_type": ["yacht", "boat", "jet_ski", "dhow"],
+        "qatar_specific": [
+          "Vessel must be registered in Qatar",
+          "Valid boat license required",
+          "Vessel age and value affect premium"
+        ]
+      },
+      "discounts": {
+        "safety_equipment": {
+          "amount": 10,
+          "description": "Discount for certified safety equipment installation"
+        },
+        "winter_storage": {
+          "amount": 5,
+          "description": "Reduced premium during winter storage period"
+        }
+      },
+      "qatar_specific_rules": [
+        "Third-party liability: Minimum QAR 500,000 for boats",
+        "Salvage coverage: Available for vessels in Qatari waters",
+        "GCC waters extension: Available as add-on"
+      ]
+    },
+    "medical": {
+      "eligibility": {
+        "age_min": 0,
+        "age_max": 75,
+        "qatar_specific": [
+          "Qatar Health Card integration",
+          "Pre-existing conditions assessment required",
+          "Family coverage available"
+        ]
+      },
+      "discounts": {
+        "family": {
+          "amount": 20,
+          "description": "20% discount for family coverage (spouse + children)"
+        },
+        "corporate": {
+          "amount": 15,
+          "description": "Corporate group discount"
+        },
+        "annual_payment": {
+          "amount": 10,
+          "description": "10% discount for annual payment vs. monthly"
+        }
+      },
+      "qatar_specific_rules": [
+        "Qatar Health Card required for local medical facilities",
+        "Coverage includes Hamad Medical Corporation and private hospitals",
+        "Outpatient coverage: Standard 80% coverage, can be upgraded to 100%",
+        "Maternity coverage: Available as add-on, 12-month waiting period"
+      ],
+      "profile_factors": {
+        "age_50_plus": {
+          "recommendation": "Enhanced health coverage",
+          "description": "Older adults should consider comprehensive health insurance with chronic disease coverage"
+        },
+        "women_health": {
+          "recommendation": "Maternity add-on",
+          "description": "Women of childbearing age should consider maternity coverage"
+        }
+      }
+    }
+  },
+  "profile_factors": {
+    "nationality": {
+      "qatari": {
+        "benefits": [
+          "10% base discount on car insurance",
+          "5% discount on travel insurance",
+          "Priority customer service",
+          "Access to exclusive Qatari-only promotions"
+        ],
+        "eligibility": "Must be Qatari national with valid QID"
+      },
+      "gcc": {
+        "benefits": [
+          "5% base discount on car insurance",
+          "Simplified documentation process",
+          "GCC cross-border coverage options"
+        ],
+        "eligibility": "Must be GCC national with valid residency"
+      },
+      "expat": {
+        "benefits": [
+          "Standard rates apply",
+          "Multi-year policy discounts available",
+          "Expat-focused support services"
+        ],
+        "eligibility": "Valid residency permit required"
+      }
+    },
+    "age": {
+      "18-25": {
+        "risk_profile": "Young driver/adult",
+        "recommendations": [
+          "Higher premiums for car insurance due to experience",
+          "Travel insurance: Best rates available",
+          "Consider safe driving missions to reduce car insurance costs"
+        ]
+      },
+      "26-40": {
+        "risk_profile": "Prime age",
+        "recommendations": [
+          "Standard rates apply",
+          "Best time to maximize no-claims bonuses",
+          "Consider comprehensive coverage for growing assets"
+        ]
+      },
+      "41-60": {
+        "risk_profile": "Mature",
+        "recommendations": [
+          "Car insurance: Mature driver discounts available",
+          "Health insurance: Consider enhanced coverage",
+          "Life insurance: Critical coverage period"
+        ]
+      },
+      "60+": {
+        "risk_profile": "Senior",
+        "recommendations": [
+          "Health insurance: Essential coverage",
+          "Travel insurance: Medical coverage critical",
+          "Review coverage annually"
+        ]
+      }
+    },
+    "gender": {
+      "female": {
+        "specific_benefits": [
+          "Women's health insurance coverage options",
+          "Maternity add-ons available",
+          "Lower car insurance premiums in some age groups"
+        ]
+      },
+      "male": {
+        "specific_benefits": [
+          "Standard rates apply",
+          "Sports coverage options available"
+        ]
+      }
+    },
+    "first_time_buyer": {
+      "car": {
+        "promotion": "3 months FREE insurance on comprehensive coverage",
+        "requirements": [
+          "Must not have owned car insurance in Qatar before",
+          "Must purchase comprehensive (not TPL only)",
+          "Valid Qatari driving license",
+          "Vehicle registered in buyer's name"
+        ],
+        "validity": "Limited time promotion, subject to terms"
+      },
+      "general": {
+        "benefits": [
+          "Educational resources",
+          "Dedicated support team",
+          "Simplified documentation process",
+          "Introductory rates"
+        ]
+      }
+    },
+    "budget_ranges": {
+      "under_1200_qar": {
+        "recommended_products": ["TPL car insurance", "Basic travel insurance"],
+        "strategy": "Essential coverage focus"
+      },
+      "1200-3000_qar": {
+        "recommended_products": ["Comprehensive car insurance", "Mid-tier travel", "Basic home contents"],
+        "strategy": "Balanced coverage"
+      },
+      "3000-10000_qar": {
+        "recommended_products": ["Premium car with add-ons", "Multi-trip travel", "Comprehensive home", "Health insurance"],
+        "strategy": "Multi-product bundle"
+      },
+      "10000-30000_qar": {
+        "recommended_products": ["Full coverage suite", "All products with premium add-ons"],
+        "strategy": "Complete protection with maximum discounts"
+      }
+    }
+  },
+  "qatar_specific": {
+    "regulations": [
+      "All insurance policies must comply with Qatar Central Bank regulations",
+      "TPI (Third Party Insurance) is mandatory for all vehicles",
+      "Minimum coverage amounts set by QCB for different product types",
+      "Claims process follows Qatari legal framework"
+    ],
+    "currency": "QAR (Qatari Riyal)",
+    "language_support": ["English", "Arabic"],
+    "local_partners": [
+      "Hamad Medical Corporation (Health)",
+      "Qatari driving license integration",
+      "Salik tag integration for car insurance",
+      "Qatar Health Card integration"
+    ],
+    "cultural_considerations": [
+      "Ramadan and Qatari national holidays affect coverage periods",
+      "Family coverage highly valued in Qatari market",
+      "Multi-generational household coverage options available",
+      "Sharia-compliant investment options for life insurance"
+    ]
+  },
+  "bundle_discounts": {
+    "two_products": {
+      "discount_percentage": 10,
+      "description": "10% discount when purchasing any 2 QIC products together"
+    },
+    "three_products": {
+      "discount_percentage": 15,
+      "description": "15% discount when purchasing any 3 QIC products together"
+    },
+    "four_plus_products": {
+      "discount_percentage": 20,
+      "description": "20% discount when purchasing 4+ QIC products together"
+    },
+    "preferred_combinations": {
+      "car_home": {
+        "discount": 12,
+        "description": "Car + Home insurance: 12% bundle discount (extra 2% for popular combination)"
+      },
+      "car_travel": {
+        "discount": 11,
+        "description": "Car + Travel insurance: 11% bundle discount"
+      },
+      "health_family": {
+        "discount": 25,
+        "description": "Family health insurance: 25% discount (vs. individual policies)"
+      }
+    }
+  },
+  "scoring_criteria": {
+    "relevance_factors": {
+      "category_match": {
+        "weight": 0.4,
+        "description": "How well the plan matches the selected category (car, travel, etc.)"
+      },
+      "profile_alignment": {
+        "weight": 0.3,
+        "description": "Alignment with user's profile (nationality, age, budget, first-time buyer status)"
+      },
+      "qatar_relevance": {
+        "weight": 0.2,
+        "description": "Relevance to Qatar-specific regulations, requirements, and market conditions"
+      },
+      "scenario_match": {
+        "weight": 0.1,
+        "description": "How well the plan addresses the specific scenario described by the user"
+      }
+    },
+    "severity_factors": {
+      "financial_impact": {
+        "weight": 0.4,
+        "description": "Potential financial impact if insurance is not secured"
+      },
+      "legal_compliance": {
+        "weight": 0.3,
+        "description": "Legal/regulatory requirements (e.g., TPL mandatory for cars)"
+      },
+      "risk_level": {
+        "weight": 0.2,
+        "description": "Inherent risk level based on scenario and user profile"
+      },
+      "urgency": {
+        "weight": 0.1,
+        "description": "Time-sensitive nature of the insurance need"
+      }
+    }
+  }
+}
+

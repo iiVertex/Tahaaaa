@@ -4,6 +4,7 @@ import { startMissionSchema, completeMissionSchema, joinMissionSchema } from '..
 import { authenticateUser } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
+import { rateLimit } from 'express-rate-limit';
 import { strictRateLimit } from '../middleware/security.js';
 
 /** @param {{ mission: import('../services/mission.service.js').MissionService, product?: import('../services/product.service.js').ProductService }} deps */
@@ -12,6 +13,13 @@ export function createMissionsRouter(deps) {
   const missionService = deps?.mission;
   const productService = deps?.product;
   const achievementService = deps?.achievement;
+
+  // Rate limiter for daily mission generation (10 requests per hour)
+  const dailyMissionRateLimit = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 10,
+    message: { success: false, message: 'Too many daily mission generations. Please wait an hour.' }
+  });
 
   // Get all missions with filters
   router.get('/', 
@@ -36,11 +44,16 @@ export function createMissionsRouter(deps) {
             ...mission,
             product_spotlight: productService ? productService.getProductSpotlight(mission.category) : undefined,
             user_progress: userMission ? {
-              status: userMission.status,
-              progress: userMission.progress,
+              status: userMission.status || 'available',
+              progress: userMission.progress || 0,
               started_at: userMission.started_at,
               completed_at: userMission.completed_at
-            } : null
+            } : {
+              status: 'available',
+              progress: 0,
+              started_at: null,
+              completed_at: null
+            }
           };
         });
 
@@ -105,6 +118,21 @@ export function createMissionsRouter(deps) {
     })
   );
 
+  // Generate personalized missions for user
+  router.post('/generate', 
+    authenticateUser,
+    strictRateLimit,
+    asyncHandler(async (req, res) => {
+      const userId = req.user.id;
+
+      const result = await missionService.generateMissions(userId);
+      if (!result.ok) {
+        return res.status(result.status || 500).json({ success: false, message: result.message });
+      }
+      res.status(201).json({ success: true, data: { missions: result.missions || [] } });
+    })
+  );
+
   // Start a mission
   router.post('/start', 
     authenticateUser,
@@ -118,7 +146,11 @@ export function createMissionsRouter(deps) {
       if (!result.ok) {
         return res.status(result.status).json({ success: false, message: result.message });
       }
-      res.status(201).json({ success: true, message: 'Mission started' });
+      res.status(201).json({ 
+        success: true, 
+        message: 'Mission started',
+        data: { steps: result.steps || [] }
+      });
     })
   );
 
@@ -144,7 +176,21 @@ export function createMissionsRouter(deps) {
           achievements_unlocked = (unlocked || []).map(a => ({ id: a.id, name_en: a.name_en, xp_reward: a.xp_reward, coin_reward: a.coin_reward }));
         } catch (_) {}
       }
-      res.json({ success: true, data: { ...result.results, achievements_unlocked } });
+      
+      // Get updated user coins after completion
+      const { container } = await import('../di/container.js');
+      const updatedUser = await container.repos.users.getById(userId);
+      
+      res.json({ 
+        success: true, 
+        data: { 
+          ...result.results, 
+          achievements_unlocked,
+          coins: updatedUser?.coins || 0,
+          xp: updatedUser?.xp || 0,
+          level: updatedUser?.level || 1
+        } 
+      });
     })
   );
 
@@ -246,6 +292,93 @@ export function createMissionsRouter(deps) {
       } catch (error) {
         logger.error('Error getting completed missions:', error);
         res.status(500).json({ success: false, message: 'Failed to get completed missions', error: error.message });
+      }
+    })
+  );
+
+  // Get mission steps for a user mission
+  router.get('/:missionId/steps', 
+    authenticateUser,
+    asyncHandler(async (req, res) => {
+      const userId = req.user.id;
+      const { missionId } = req.params;
+
+      try {
+        // Get user's active mission for this missionId
+        const { userProgress } = await missionService.listMissions({}, userId);
+        const userMission = userProgress.find(um => um.mission_id === missionId && um.status === 'active');
+        
+        if (!userMission) {
+          return res.status(404).json({ success: false, message: 'Active mission not found' });
+        }
+
+        // Get steps from missionStepsRepo via container
+        const { container } = await import('../di/container.js');
+        const steps = await container.repos.missionSteps.getByUserMission(userMission.id);
+
+        res.json({ success: true, data: { steps: steps || [] } });
+
+      } catch (error) {
+        logger.error('Error getting mission steps:', error);
+        res.status(500).json({ success: false, message: 'Failed to get mission steps', error: error.message });
+      }
+    })
+  );
+
+  // Get daily brief
+  router.get('/daily-brief',
+    authenticateUser,
+    asyncHandler(async (req, res) => {
+      const userId = req.user.id;
+      const { container } = await import('../di/container.js');
+      const aiService = container.services.ai;
+      const profileService = container.services.profile;
+
+      try {
+        // Get user profile
+        const profile = await profileService?.getProfile?.(userId);
+        if (!profile || !profile.userProfile) {
+          return res.status(404).json({ success: false, message: 'User profile not found' });
+        }
+
+        // Generate daily brief using AI
+        const dailyBrief = await aiService?.generateDailyBrief?.(userId, profile.userProfile) || 'Welcome back! Ready for today\'s missions?';
+
+        res.json({ success: true, data: { daily_brief: dailyBrief } });
+      } catch (error) {
+        logger.error('Error getting daily brief:', error);
+        res.status(500).json({ success: false, message: 'Failed to get daily brief', error: error.message });
+      }
+    })
+  );
+
+  // Generate/reset daily adaptive missions
+  router.post('/generate-daily',
+    authenticateUser,
+    dailyMissionRateLimit, // Max 10 requests per hour
+    asyncHandler(async (req, res) => {
+      const userId = req.user.id;
+
+      try {
+        const result = await missionService.resetDailyMissions(userId);
+        
+        if (!result.ok) {
+          return res.status(result.status || 500).json({ 
+            success: false, 
+            message: result.message || 'Failed to generate daily missions' 
+          });
+        }
+
+        res.json({ 
+          success: true, 
+          data: { 
+            missions: result.missions || [],
+            alreadyReset: result.alreadyReset || false 
+          } 
+        });
+      } catch (error) {
+        logger.error('Error generating daily missions:', error);
+        res.status(500).json({ success: false, message: 'Failed to generate daily missions', error: error.message });
       }
     })
   );

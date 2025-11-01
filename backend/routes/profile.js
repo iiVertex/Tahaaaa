@@ -44,13 +44,19 @@ export function createProfileRouter(deps) {
               avatar_url: user.avatar_url,
               language: user.language,
               theme: user.theme,
+              coins: user.coins || 0,
+              xp: user.xp || 0,
+              level: user.level || 1,
+              lifescore: user.lifescore || 0,
               created_at: user.created_at,
               updated_at: user.updated_at
             },
-            profile: userProfile?.profile_json || {},
-            stats,
-            suggestions,
-            decrypted_data: decryptedData ? JSON.parse(decryptedData) : null
+            userProfile: {
+              profile_json: userProfile?.profile_json || {},
+              stats,
+              suggestions,
+              decrypted_data: decryptedData ? JSON.parse(decryptedData) : null
+            }
           }
         });
 
@@ -72,7 +78,7 @@ export function createProfileRouter(deps) {
 
       try {
         const updated = await profileService.updateProfile(userId, updates);
-        logger.info('User profile updated', { userId, updates: Object.keys(updates) });
+        logger.info('User profile updated', { userId, updates: updates ? Object.keys(updates) : [] });
         res.json({ success: true, message: 'Profile updated successfully', data: updated });
       } catch (error) {
         logger.error('Error updating user profile:', error);

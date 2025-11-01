@@ -51,7 +51,8 @@ export function createAiRouter(deps) {
           const eligibles = await productService.getEligibleProducts(userId);
           const top = eligibles.filter((p) => p.eligible).slice(0, 3);
           const ids = top.map((p) => p.id);
-          const bundle = productService.calculateBundleSavings(ids);
+          // Calculate bundle savings without coins discount for recommendations (can be added later if needed)
+          const bundle = productService.calculateBundleSavings(ids, null);
           productRecommendations = top.map((p) => ({
             product_id: p.id,
             name: p.name,
@@ -193,7 +194,8 @@ export function createAiRouter(deps) {
 
       const composite = await profileService.getProfile(userId);
       const profileData = composite?.userProfile?.profile_json || {};
-      const contextualInputs = { ...scenarioInputs, user_profile: profileData };
+      const qicTerms = scenarioInputs.qicTerms || null; // QIC terms JSON from frontend
+      const contextualInputs = { ...scenarioInputs, user_profile: profileData, qicTerms };
       const prediction = await aiService.predictScenarioOutcome(contextualInputs);
 
       logger.info('Scenario simulation completed', {

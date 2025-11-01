@@ -3,16 +3,21 @@ export class UserRewardsRepo {
     this.db = database;
   }
 
-  async redeemReward(userId, rewardId) {
+  async redeemReward(userId, rewardId, extraData = {}) {
     if (typeof this.db.query === 'function') {
       try {
         const rows = await this.db.query('user_rewards', { type: 'insert' }, {
-          data: { user_id: userId, reward_id: rewardId, redeemed_at: new Date().toISOString() }
+          data: { 
+            user_id: userId, 
+            reward_id: rewardId, 
+            redeemed_at: new Date().toISOString(),
+            ...extraData
+          }
         });
-        return rows?.[0] || { user_id: userId, reward_id: rewardId };
+        return rows?.[0] || { user_id: userId, reward_id: rewardId, ...extraData };
       } catch (_) {}
     }
-    return { id: rewardId, user_id: userId, redeemed_at: new Date().toISOString() };
+    return { id: rewardId, user_id: userId, reward_id: rewardId, redeemed_at: new Date().toISOString(), ...extraData };
   }
 
   async listByUser(userId) {
@@ -25,6 +30,11 @@ export class UserRewardsRepo {
       } catch (_) {}
     }
     return [];
+  }
+  
+  // Alias for listByUser (for route compatibility)
+  async getByUser(userId) {
+    return this.listByUser(userId);
   }
 }
 

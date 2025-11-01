@@ -10,8 +10,46 @@ export function createRewardsRouter(deps) {
 
   // Rewards catalog
   router.get('/', authenticateUser, asyncHandler(async (req, res) => {
-    const rewards = await rewardService.listActiveRewards();
-    res.json({ success: true, data: { rewards } });
+    const userId = req.user.id;
+    
+    // Check if rewardService is available
+    if (!rewardService) {
+      return res.status(500).json({ success: false, message: 'Rewards service not available' });
+    }
+    
+    let rewards = [];
+    try {
+      rewards = await rewardService.listActiveRewards();
+      // Ensure rewards is an array
+      if (!Array.isArray(rewards)) {
+        rewards = [];
+      }
+    } catch (error) {
+      console.error('[Rewards Route] Error fetching rewards:', error);
+      // Return empty array on error rather than crashing
+      rewards = [];
+    }
+    
+    // Get user's redeemed rewards to mark which ones are already purchased
+    let redeemedRewardIds = [];
+    try {
+      if (rewardService.userRewardsRepo && rewardService.userRewardsRepo.getByUser) {
+        const userRewards = await rewardService.userRewardsRepo.getByUser(userId);
+        redeemedRewardIds = (userRewards || []).map(ur => ur.reward_id || ur.id);
+      }
+    } catch (error) {
+      console.warn('[Rewards Route] Error fetching user rewards:', error.message);
+      // Continue even if user rewards fetch fails
+    }
+    
+    // Mark rewards as redeemed
+    const rewardsWithStatus = rewards.map(reward => ({
+      ...reward,
+      is_redeemed: redeemedRewardIds.includes(reward.id),
+      coupon_code: reward.coupon_code || undefined // Include coupon code if available
+    }));
+    
+    res.json({ success: true, data: { rewards: rewardsWithStatus } });
   }));
 
   router.get('/badges', authenticateUser, asyncHandler(async (req, res) => {

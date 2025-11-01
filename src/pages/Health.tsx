@@ -75,7 +75,7 @@ export default function Health() {
       prs.forEach((o:any)=> track('offer_view', { product_id: o.product_id }));
       const ids = (catalog as any[]).slice(0,2).map(p=>p.id);
       if (ids.length >= 2) {
-        getBundleSavings(ids).then((b)=> setBundle({ ids, ...b })).catch(()=> setBundle(null));
+        getBundleSavings(ids).then((b: any)=> setBundle(b ? { ids, ...(b.data || b) } : null)).catch(()=> setBundle(null));
       }
     }).finally(() => setLoading(false));
   }, [prefs]);

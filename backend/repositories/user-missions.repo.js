@@ -6,8 +6,16 @@ export class UserMissionsRepo {
   }
 
   byUser(userId, status = null) { return this.db.getUserMissions(userId, status); }
-  start(userId, missionId) { return this.db.startMission(userId, missionId); }
+  async start(userId, missionId) { 
+    const userMission = await this.db.startMission(userId, missionId);
+    return userMission;
+  }
   complete(userId, missionId, completionData) { return this.db.completeMission(userId, missionId, completionData); }
+  
+  async getUserMissionById(userMissionId) {
+    const all = await this.db.getUserMissions(null, null);
+    return all.find(um => um.id === userMissionId) || null;
+  }
 }
 
 export default UserMissionsRepo;

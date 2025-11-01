@@ -1,0 +1,51 @@
+# Testing Standards - ALWAYS FOLLOW
+
+## Core Principle
+**Always test actual user workflows, not just API endpoints in isolation.**
+
+## Required Approach
+When testing or validating code:
+
+1. **Test Complete User Journeys**
+   - Don't just check if `/api/endpoint` returns 200
+   - Test: "User navigates to Showcase → fills form → clicks Simulate → sees result"
+   - Verify the entire flow works end-to-end
+
+2. **Test Error Cases**
+   - What happens when API returns 400?
+   - What happens when rate limited (429)?
+   - What happens when response is null/undefined?
+   - Verify components handle these gracefully
+
+3. **Test Component Resilience**
+   - Verify optional chaining: `result?.suggested_missions?.map`
+   - Check null-safety: components don't crash on null
+   - Validate empty states: arrays can be empty
+   - Test missing fields: APIs may not return all expected fields
+
+4. **Test Real Interactions**
+   - Button clicks
+   - Form submissions
+   - Navigation
+   - Loading states
+
+## Every Test Should Answer
+**"Would this work for a real user?"** NOT **"Does this endpoint return 200?"**
+
+## Before Marking as "Tested"
+- [ ] Complete user workflow tested
+- [ ] Error cases handled (400, 429, network failures)
+- [ ] Null/undefined safety verified
+- [ ] Component renders without crashing
+- [ ] Loading states work
+- [ ] Success states display properly
+- [ ] Error messages shown
+- [ ] Fallback mechanisms work
+
+## Test Scripts to Use
+- `npm run test:e2e` - End-to-end workflows
+- `npm run test:interactions` - User interactions
+- `npm run test:workflows` - All workflow tests
+
+See `TESTING_STANDARDS.md` for details.
+

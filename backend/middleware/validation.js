@@ -72,7 +72,9 @@ export const updateProfileSchema = Joi.object({
   username: Joi.string().min(3).max(30).optional(),
   avatar_url: Joi.string().uri().optional(),
   preferences: Joi.object().optional(),
-  settings: Joi.object().optional()
+  settings: Joi.object().optional(),
+  profile_json: Joi.object().unknown(true).optional(), // New comprehensive profile format - allow any structure inside
+  nickname: Joi.string().optional()
 });
 
 // AI request validation

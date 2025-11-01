@@ -183,13 +183,82 @@ class AIService {
     const risk = this.computeRiskLevel(normalized);
     const narrative = this.buildNarrative(normalized, scoreDelta, risk);
     const suggested_missions = this.buildSuggestedMissions(normalized, scoreDelta, xp);
+    
+    // Calculate severity score (1-10) based on risk and scenario factors
+    const severityScore = Math.min(10, Math.max(1, 
+      (risk === 'high' ? 8 : risk === 'medium' ? 5 : 3) + 
+      (Math.abs(scoreDelta) > 20 ? 2 : Math.abs(scoreDelta) > 10 ? 1 : 0)
+    ));
+    
+    // Generate recommended plans with relevance scores (mock for offline)
+    const category = normalized.category || normalized.type || 'car';
+    const recommendedPlans = this.generateRecommendedPlansWithScores(category, normalized, severityScore);
+    
     return {
       lifescore_impact: scoreDelta,
       xp_reward: xp,
       risk_level: risk,
       narrative,
-      suggested_missions
+      suggested_missions,
+      severity_score: severityScore,
+      recommended_plans: recommendedPlans
     };
+  }
+  
+  // Generate recommended plans with relevance scores (1-10) for offline mode
+  generateRecommendedPlansWithScores(category, normalized, severityScore) {
+    // Mock plans - in production, this would use actual QIC product catalog
+    const plans = [];
+    const baseRelevance = 8;
+    
+    // Match category-specific plans
+    if (category === 'car' || category === 'motorcycle') {
+      plans.push({
+        plan_id: 'qic-comprehensive-car',
+        plan_name: 'QIC Comprehensive Car Insurance',
+        plan_type: category,
+        relevance_score: baseRelevance + (normalized.user_profile?.first_time_buyer ? 1 : 0),
+        description: 'Full coverage with agency repair option for vehicles 1-3 years old',
+        qatar_compliance: 'Complies with Qatar TPI requirements, includes GCC coverage option',
+        estimated_premium: 'QAR 1,200 - 3,500',
+        key_features: ['Agency repair', 'TPI compliance', 'GCC coverage add-on']
+      });
+      plans.push({
+        plan_id: 'qic-tpl-car',
+        plan_name: 'QIC Third Party Liability',
+        plan_type: category,
+        relevance_score: baseRelevance - 2,
+        description: 'Basic TPL coverage as required by Qatari law',
+        qatar_compliance: 'Meets minimum QCB requirements for vehicle insurance',
+        estimated_premium: 'QAR 500 - 1,200',
+        key_features: ['Legal compliance', 'Affordable', 'Minimum coverage']
+      });
+    } else if (category === 'travel') {
+      plans.push({
+        plan_id: 'qic-schengen-travel',
+        plan_name: 'QIC Schengen Travel Insurance',
+        plan_type: category,
+        relevance_score: baseRelevance + 1,
+        description: 'Visa-compliant coverage for Schengen countries with EUR 30,000 minimum',
+        qatar_compliance: 'Meets Schengen visa requirements, valid for Qatari residents',
+        estimated_premium: 'QAR 200 - 800',
+        key_features: ['Schengen visa compliance', 'EUR 30,000 medical', 'Baggage protection']
+      });
+    } else if (category === 'home') {
+      plans.push({
+        plan_id: 'qic-home-contents',
+        plan_name: 'QIC Home Contents Insurance',
+        plan_type: category,
+        relevance_score: baseRelevance,
+        description: 'Comprehensive contents coverage for apartments and villas',
+        qatar_compliance: 'Covers Qatar-specific risks (sandstorms, flash floods)',
+        estimated_premium: 'QAR 800 - 2,500',
+        key_features: ['Contents protection', 'Natural disaster coverage', 'Theft protection']
+      });
+    }
+    
+    // Sort by relevance (highest first) and limit to top 5
+    return plans.sort((a, b) => b.relevance_score - a.relevance_score).slice(0, 5);
   }
 
   /**
@@ -200,6 +269,696 @@ class AIService {
   async recommendAdaptiveMissions(userId, context = {}) {
     const base = this.buildSuggestedMissions(this.normalizeInputs(context), 8, 40);
     return base.map(m => ({ ...m, reason: 'Adaptive recommendation', ai_generated: true }));
+  }
+
+  /**
+   * Generate personalized missions for a user based on their complete profile.
+   * This is used when user clicks "Generate Missions" button on Missions page.
+   * 
+   * Grand Strategy Alignment:
+   * - Gamification: Engage users through personalized missions
+   * - Multi-product conversion: Missions promote different QIC products
+   * - Retention: Missions encourage frequent app return
+   * - Ecosystem utilization: Missions connect to QIC sub-services
+   * - Referral generation: Missions can include referral challenges
+   * 
+   * @param {string} userId
+   * @param {Object} userProfile - Complete user profile with all required fields
+   * @returns {Promise<Array>} Array of generated mission objects
+   */
+  async generateMissionsForUser(userId, userProfile) {
+    try {
+      // Validate profile completion
+      const profileJson = userProfile?.profile_json || {};
+      const requiredFields = ['name', 'age', 'gender', 'nationality', 'insurance_preferences'];
+      
+      for (const field of requiredFields) {
+        if (field === 'insurance_preferences') {
+          if (!Array.isArray(profileJson[field]) || profileJson[field].length === 0) {
+            throw new Error(`Profile incomplete: ${field} is required and must contain at least one preference`);
+          }
+        } else if (!profileJson[field]) {
+          throw new Error(`Profile incomplete: ${field} is required`);
+        }
+      }
+
+      if (this.isMockMode) {
+        return this._generateMockMissionsForUser(userProfile);
+      }
+
+      if (this.provider === 'openai' && this.openai) {
+        const prompt = this._buildMissionGenerationPrompt(userProfile);
+        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 1200, temperature: 0.8 });
+        const parsed = this._parseMissionGenerationResponse(raw);
+        return parsed || this._generateMockMissionsForUser(userProfile);
+      }
+
+      // Fallback to mock
+      return this._generateMockMissionsForUser(userProfile);
+    } catch (error) {
+      logger.error('Error generating missions for user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate 3-step execution plan for a started mission.
+   * 
+   * @param {Object} mission - Mission object with details
+   * @param {Object} userProfile - User profile for context
+   * @returns {Promise<Array>} Array of 3 step objects: [{ step_number: 1, title: string, description: string }, ...]
+   */
+  async generateMissionSteps(mission, userProfile) {
+    try {
+      if (this.isMockMode) {
+        return this._generateMockMissionSteps(mission);
+      }
+
+      if (this.provider === 'openai' && this.openai) {
+        const prompt = this._buildMissionStepsPrompt(mission, userProfile);
+        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 600, temperature: 0.7 });
+        const parsed = this._parseMissionStepsResponse(raw);
+        return parsed || this._generateMockMissionSteps(mission);
+      }
+
+      return this._generateMockMissionSteps(mission);
+    } catch (error) {
+      logger.error('Error generating mission steps:', error);
+      return this._generateMockMissionSteps(mission);
+    }
+  }
+
+  // Helper methods for mission generation
+  _buildMissionGenerationPrompt(userProfile) {
+    const profile = userProfile?.profile_json || {};
+    const insurancePrefs = profile.insurance_preferences || [];
+    const areasOfInterest = profile.areas_of_interest || [];
+    const vulnerabilities = Array.isArray(profile.vulnerabilities) ? profile.vulnerabilities : [];
+    const firstTimeBuyer = profile.first_time_buyer || false;
+    const age = profile.age || 30;
+    const gender = profile.gender || '';
+    const nationality = profile.nationality || '';
+    const budget = profile.budget || 0;
+
+    return `You are an AI assistant helping QIC Life insurance super app generate personalized missions to:
+1. Engage users through gamification
+2. Convert single-product customers to multi-product customers
+3. Increase app retention (users return more than once every few months)
+4. Utilize QIC ecosystem sub-services
+5. Generate referrals through loyalty and engagement
+
+User Profile:
+- Age: ${age}, Gender: ${gender}, Nationality: ${nationality}
+- Insurance Preferences: ${insurancePrefs.join(', ')}
+- Areas of Interest: ${areasOfInterest.join(', ')}
+- Vulnerabilities: ${vulnerabilities.join(', ')}
+- Budget: ${budget} QAR/year
+- First-time buyer: ${firstTimeBuyer ? 'Yes' : 'No'}
+
+Generate 3-5 personalized missions tailored to this user. Each mission must:
+- Have a category matching one of: safe_driving, health, financial_guardian, family_protection, lifestyle
+- Have difficulty: easy, medium, or hard
+- Include coin_reward: easy=10, medium=20, hard=30
+- Include xp_reward (50-200 range based on difficulty)
+- Include lifescore_impact (5-20 range)
+- Be directly relevant to their insurance preferences, interests, vulnerabilities, and demographics
+- Promote QIC insurance products or ecosystem services
+- Encourage retention and engagement
+
+Return JSON array of missions, each with: title_en, title_ar (Arabic translation), description_en, description_ar, category, difficulty, xp_reward, lifescore_impact, coin_reward.`;
+  }
+
+  _buildMissionStepsPrompt(mission, userProfile) {
+    const profile = userProfile?.profile_json || {};
+    
+    return `Generate exactly 3 actionable steps for this insurance mission:
+Mission: ${mission.title_en || mission.title}
+Category: ${mission.category}
+Difficulty: ${mission.difficulty}
+
+User context:
+- Age: ${profile.age || 30}, ${profile.gender || ''}, ${profile.nationality || ''}
+- Insurance preferences: ${(profile.insurance_preferences || []).join(', ')}
+- First-time buyer: ${profile.first_time_buyer ? 'Yes' : 'No'}
+
+Each step must be:
+1. Actionable and specific (user can complete it)
+2. Relevant to the mission category and insurance context
+3. Aligned with gamification and retention goals
+4. Progressive (steps build on each other)
+
+Return JSON array with exactly 3 objects, each with: step_number (1-3), title, description.`;
+  }
+
+  _parseMissionGenerationResponse(content) {
+    try {
+      const parsed = JSON.parse(content || '[]');
+      if (!Array.isArray(parsed)) return null;
+      
+      // Validate and normalize missions
+      return parsed.map((m, idx) => ({
+        id: m.id || `ai-gen-${Date.now()}-${idx}`,
+        title_en: m.title_en || m.title || 'Mission',
+        title_ar: m.title_ar || m.title || 'مهمة',
+        description_en: m.description_en || m.description || 'Complete this mission',
+        description_ar: m.description_ar || m.description || 'أكمل هذه المهمة',
+        category: m.category || 'health',
+        difficulty: m.difficulty || 'easy',
+        xp_reward: m.xp_reward || 50,
+        lifescore_impact: m.lifescore_impact || 5,
+        coin_reward: m.coin_reward || (m.difficulty === 'easy' ? 10 : m.difficulty === 'medium' ? 20 : 30),
+        ai_generated: true,
+        is_active: true
+      }));
+    } catch {
+      return null;
+    }
+  }
+
+  _parseMissionStepsResponse(content) {
+    try {
+      const parsed = JSON.parse(content || '[]');
+      if (!Array.isArray(parsed) || parsed.length !== 3) return null;
+      
+      return parsed.map((step, idx) => ({
+        step_number: step.step_number || (idx + 1),
+        title: step.title || `Step ${idx + 1}`,
+        description: step.description || 'Complete this step'
+      })).slice(0, 3);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Generate daily brief: 1-sentence personalized hook (bilingual Arabic/English)
+   * Uses optimized OpenAI prompt for cost efficiency
+   * @param {string} userId
+   * @param {Object} userProfile - Complete user profile
+   * @returns {Promise<string>} Daily brief text
+   */
+  async generateDailyBrief(userId, userProfile) {
+    try {
+      const profile = userProfile?.profile_json || {};
+      const name = profile.name || 'Friend';
+      const age = profile.age || 30;
+      const gender = profile.gender || '';
+      const nationality = profile.nationality || '';
+      const budget = profile.budget || 0;
+      const insurancePrefs = profile.insurance_preferences || [];
+
+      if (this.isMockMode) {
+        return this._generateMockDailyBrief(profile);
+      }
+
+      if (this.provider === 'openai' && this.openai) {
+        const prompt = this._buildDailyBriefPrompt(profile);
+        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 100, temperature: 0.8 });
+        const parsed = this._parseDailyBriefResponse(raw);
+        return parsed || this._generateMockDailyBrief(profile);
+      }
+
+      return this._generateMockDailyBrief(profile);
+    } catch (error) {
+      logger.error('Error generating daily brief:', error);
+      return this._generateMockDailyBrief(userProfile?.profile_json || {});
+    }
+  }
+
+  /**
+   * Generate 3 adaptive missions (Easy/Medium/Hard) for daily reset
+   * Uses optimized OpenAI prompt for cost efficiency
+   * @param {string} userId
+   * @param {Object} userProfile - Complete user profile
+   * @returns {Promise<Array>} Array of exactly 3 missions
+   */
+  async generateAdaptiveMissions(userId, userProfile) {
+    try {
+      const profile = userProfile?.profile_json || {};
+      
+      if (this.isMockMode) {
+        return this._generateMockAdaptiveMissions(profile);
+      }
+
+      if (this.provider === 'openai' && this.openai) {
+        const prompt = this._buildAdaptiveMissionsPrompt(profile);
+        // Use gpt-4o-mini for cost efficiency
+        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 800, temperature: 0.8 });
+        const parsed = this._parseAdaptiveMissionsResponse(raw);
+        return parsed || this._generateMockAdaptiveMissions(profile);
+      }
+
+      return this._generateMockAdaptiveMissions(profile);
+    } catch (error) {
+      logger.error('Error generating adaptive missions:', error);
+      return this._generateMockAdaptiveMissions(userProfile?.profile_json || {});
+    }
+  }
+
+  _buildDailyBriefPrompt(profile) {
+    const name = profile.name || 'Friend';
+    const age = profile.age || 30;
+    const gender = profile.gender || '';
+    const nationality = profile.nationality || '';
+    const budget = profile.budget || 0;
+    const insurancePrefs = profile.insurance_preferences || [];
+    const vulnerabilities = Array.isArray(profile.vulnerabilities) ? profile.vulnerabilities : [];
+    const firstTimeBuyer = profile.first_time_buyer || false;
+
+    return `You are QIC AI, a warm Qatari insurance guide focused on safety, family, and growth. Use ${name}, ${age}, ${gender}, ${nationality}, ${budget} to personalize.
+
+Generate full Missions Tab content as JSON:
+
+{
+  "daily_brief": "1-sentence hook (12 words max, bilingual Arabic/English, include falcon/date palm motif, tie to vehicle/family safety)",
+  "missions": [
+    {
+      "level": "easy",
+      "title": "Short title (5 words)",
+      "desc": "1-line desc (15 words, with QIC service CTA, cultural slang like 'majlis-safe')",
+      "reward": "X QIC Coins + badge/motif"
+    },
+    { "level": "medium", ... },
+    { "level": "hard", ... }
+  ]
+}
+
+Tone: Hospitable, trusting. Output ONLY JSON. No extras.`;
+  }
+
+  _buildAdaptiveMissionsPrompt(profile) {
+    const name = profile.name || 'Friend';
+    const age = profile.age || 30;
+    const gender = profile.gender || '';
+    const nationality = profile.nationality || '';
+    const budget = profile.budget || 0;
+    const insurancePrefs = profile.insurance_preferences || [];
+    const vulnerabilities = Array.isArray(profile.vulnerabilities) ? profile.vulnerabilities : [];
+    const firstTimeBuyer = profile.first_time_buyer || false;
+
+    return `You are QIC AI, a warm Qatari insurance guide focused on safety, family, and growth. Use ${name}, ${age}, ${gender}, ${nationality}, ${budget} to personalize.
+
+Generate exactly 3 tiered missions:
+
+Easy (no policy requirement): ~50 coins + falcon badge - e.g., "Renew car liability in 2 mins"
+Medium (1 policy requirement): ~150 coins + date palm animation - e.g., "Add home insurance for Eid gatherings"
+Hard (2+ policies): ~300 coins + family hospitality leaderboard spot - e.g., "Refer a relative for travel cover"
+
+Include cultural hooks (GCC hospitality, bilingual Arabic/English, Qatari motifs).
+Tie to vehicle/family safety and QIC trust.
+
+Return JSON:
+{
+  "daily_brief": "1-sentence hook (bilingual, 12 words max, falcon/date palm motif)",
+  "missions": [
+    {
+      "level": "easy",
+      "title_en": "Short title",
+      "title_ar": "عنوان عربي",
+      "desc_en": "Description with QIC CTA",
+      "desc_ar": "وصف بالعربية",
+      "coin_reward": 50,
+      "xp_reward": 100,
+      "badge": "falcon"
+    },
+    { "level": "medium", "coin_reward": 150, "xp_reward": 150, "badge": "date_palm" },
+    { "level": "hard", "coin_reward": 300, "xp_reward": 200, "badge": "family" }
+  ]
+}
+
+Output ONLY JSON.`;
+  }
+
+  _parseDailyBriefResponse(content) {
+    try {
+      const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+      if (parsed && parsed.daily_brief) {
+        return parsed.daily_brief;
+      }
+      // Try extracting from missions object
+      if (parsed && parsed.missions && Array.isArray(parsed.missions)) {
+        return parsed.daily_brief || 'Welcome back! Ready for today\'s missions?';
+      }
+      return null;
+    } catch {
+      // If not JSON, try extracting first sentence
+      if (typeof content === 'string' && content.trim()) {
+        return content.trim().split('\n')[0].substring(0, 150);
+      }
+      return null;
+    }
+  }
+
+  _parseAdaptiveMissionsResponse(content) {
+    try {
+      const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+      if (!parsed || !parsed.missions || !Array.isArray(parsed.missions)) {
+        return null;
+      }
+
+      // Ensure exactly 3 missions with proper structure
+      return parsed.missions.slice(0, 3).map((m, idx) => ({
+        id: m.id || `daily-adaptive-${Date.now()}-${idx}`,
+        title_en: m.title_en || m.title || `Daily Mission ${idx + 1}`,
+        title_ar: m.title_ar || m.title || `مهمة يومية ${idx + 1}`,
+        description_en: m.desc_en || m.description_en || m.description || 'Complete this mission',
+        description_ar: m.desc_ar || m.description_ar || m.description || 'أكمل هذه المهمة',
+        category: m.category || (m.level === 'easy' ? 'safe_driving' : m.level === 'medium' ? 'family_protection' : 'lifestyle'),
+        difficulty: m.level || (idx === 0 ? 'easy' : idx === 1 ? 'medium' : 'hard'),
+        xp_reward: m.xp_reward || (m.level === 'easy' ? 100 : m.level === 'medium' ? 150 : 200),
+        lifescore_impact: m.lifescore_impact || (m.level === 'easy' ? 5 : m.level === 'medium' ? 10 : 15),
+        coin_reward: m.coin_reward || (m.level === 'easy' ? 50 : m.level === 'medium' ? 150 : 300),
+        badge: m.badge || (m.level === 'easy' ? 'falcon' : m.level === 'medium' ? 'date_palm' : 'family'),
+        ai_generated: true,
+        is_active: true,
+        recurrence_type: 'daily'
+      }));
+    } catch (error) {
+      logger.warn('Failed to parse adaptive missions response', { error: error.message });
+      return null;
+    }
+  }
+
+  _generateMockDailyBrief(profile) {
+    const name = profile.name || 'Friend';
+    const prefs = profile.insurance_preferences || [];
+    const hasCar = prefs.some(p => p.toLowerCase().includes('car'));
+    
+    if (hasCar) {
+      return `Marhaba ${name}! Ready to secure your journey? 🦅 Your vehicle deserves the best protection.`;
+    }
+    return `Marhaba ${name}! Welcome back to QIC Life. 🌴 Let's build your safety net together.`;
+  }
+
+  _generateMockAdaptiveMissions(profile) {
+    const prefs = profile.insurance_preferences || [];
+    const hasCar = prefs.some(p => p.toLowerCase().includes('car'));
+    const firstTimeBuyer = profile.first_time_buyer || false;
+
+    return [
+      {
+        id: `daily-easy-${Date.now()}`,
+        title_en: firstTimeBuyer ? 'Get Your First Car Insurance - 3 Months FREE' : 'Renew Car Liability in 2 Mins',
+        title_ar: firstTimeBuyer ? 'احصل على أول تأمين سيارات - 3 أشهر مجاناً' : 'تجديد مسؤولية السيارة في دقيقتين',
+        description_en: firstTimeBuyer ? 'Complete your first car insurance purchase and get 3 months FREE coverage!' : 'Quick renewal → 50 QIC Coins + falcon badge 🦅',
+        description_ar: firstTimeBuyer ? 'أكمل أول شراء تأمين سيارات واحصل على 3 أشهر مجاناً!' : 'تجديد سريع → 50 عملة + شارة صقر 🦅',
+        category: 'safe_driving',
+        difficulty: 'easy',
+        xp_reward: 100,
+        lifescore_impact: 15,
+        coin_reward: 50,
+        badge: 'falcon',
+        ai_generated: true,
+        is_active: true,
+        recurrence_type: 'daily'
+      },
+      {
+        id: `daily-medium-${Date.now()}`,
+        title_en: 'Add Home Insurance for Eid Gatherings',
+        title_ar: 'أضف تأمين المنزل لمجمعات العيد',
+        description_en: 'Protect your majlis → 150 Coins + date palm growth 🌴',
+        description_ar: 'احمِ المجلس → 150 عملة + نمو نخلة 🌴',
+        category: 'family_protection',
+        difficulty: 'medium',
+        xp_reward: 150,
+        lifescore_impact: 10,
+        coin_reward: 150,
+        badge: 'date_palm',
+        ai_generated: true,
+        is_active: true,
+        recurrence_type: 'daily'
+      },
+      {
+        id: `daily-hard-${Date.now()}`,
+        title_en: 'Refer Relative for Travel Cover',
+        title_ar: 'أحِط قريباً لتأمين السفر',
+        description_en: 'Share QIC with family → 300 Coins + hospitality leaderboard spot 👨‍👩‍👧‍👦',
+        description_ar: 'شارك QIC مع العائلة → 300 عملة + مكان في لوحة الضيافة 👨‍👩‍👧‍👦',
+        category: 'lifestyle',
+        difficulty: 'hard',
+        xp_reward: 200,
+        lifescore_impact: 20,
+        coin_reward: 300,
+        badge: 'family',
+        ai_generated: true,
+        is_active: true,
+        recurrence_type: 'daily'
+      }
+    ];
+  }
+
+  /**
+   * Generate Road-Trip Roulette content: wheel spin, 48-hour itinerary, CTAs, rewards
+   * Uses optimized OpenAI prompt for cost efficiency
+   * @param {string} userId
+   * @param {Object} userProfile - Complete user profile
+   * @returns {Promise<Object>} Roulette result with itinerary, CTAs, rewards
+   */
+  async generateRoadTripRoulette(userId, userProfile) {
+    try {
+      const profile = userProfile?.profile_json || {};
+      
+      if (this.isMockMode) {
+        return this._generateMockRoadTripRoulette(profile);
+      }
+
+      if (this.provider === 'openai' && this.openai) {
+        const prompt = this._buildRoadTripRoulettePrompt(profile);
+        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 500, temperature: 0.8 });
+        const parsed = this._parseRoadTripRouletteResponse(raw);
+        return parsed || this._generateMockRoadTripRoulette(profile);
+      }
+
+      return this._generateMockRoadTripRoulette(profile);
+    } catch (error) {
+      logger.error('Error generating road trip roulette:', error);
+      return this._generateMockRoadTripRoulette(userProfile?.profile_json || {});
+    }
+  }
+
+  _buildRoadTripRoulettePrompt(profile) {
+    const name = profile.name || 'Friend';
+    const age = profile.age || 30;
+    const gender = profile.gender || '';
+    const nationality = profile.nationality || '';
+    const budget = profile.budget || 0;
+    const insurancePrefs = profile.insurance_preferences || [];
+
+    return `You are QIC AI, expert in safe GCC adventures. Personalize with ${name}, ${age}, ${gender}, ${nationality}, ${budget}.
+
+Generate full Road-Trip Roulette content as JSON for one spin:
+
+{
+  "wheel_spin_result": "Falcon wheel outcome (e.g., 'Doha Desert Dash')",
+  "itinerary": [
+    "Step 1: 10-word detail (local spot like Souq Waqif, tie to insurance/roadside)",
+    "Step 2: ... (48-hr total, 3-5 steps)",
+    "Step 3: ..."
+  ],
+  "ctas": [
+    "One-tap action 1: 'Book roadside → 100 Coins'",
+    "Action 2: 'Add travel cover → Multi-product badge'"
+  ],
+  "reward": "X QIC Coins + cultural proverb (Arabic/English)"
+}
+
+Focus: Vehicle safety, family fun. Output ONLY JSON. Max 100 words total.`;
+  }
+
+  _parseRoadTripRouletteResponse(content) {
+    try {
+      const parsed = typeof content === 'string' ? JSON.parse(content) : content;
+      if (!parsed || !parsed.wheel_spin_result) {
+        return null;
+      }
+
+      return {
+        wheel_spin_result: parsed.wheel_spin_result || 'Doha Adventure',
+        itinerary: Array.isArray(parsed.itinerary) ? parsed.itinerary.slice(0, 5) : [],
+        ctas: Array.isArray(parsed.ctas) ? parsed.ctas : [],
+        reward: parsed.reward || '50 QIC Coins + "Travel safely, return joyfully"',
+        coins_earned: parsed.coins_earned || 100,
+        xp_earned: parsed.xp_earned || 50
+      };
+    } catch (error) {
+      logger.warn('Failed to parse road trip roulette response', { error: error.message });
+      return null;
+    }
+  }
+
+  _generateMockRoadTripRoulette(profile) {
+    const prefs = profile.insurance_preferences || [];
+    const hasCar = prefs.some(p => p.toLowerCase().includes('car'));
+    
+    const spinResults = [
+      'Doha Desert Dash 🦅',
+      'Souq Waqif Wander 🌴',
+      'Al Zubarah Heritage Trip 👨‍👩‍👧‍👦',
+      'Katara Cultural Journey 🕌',
+      'Corniche Coastal Cruise 🚗'
+    ];
+    
+    const randomSpin = spinResults[Math.floor(Math.random() * spinResults.length)];
+    
+    return {
+      wheel_spin_result: randomSpin,
+      itinerary: [
+        hasCar ? 'Fuel up at Al Sadd station → Check tire pressure and comprehensive insurance coverage' : 'Start at Souq Waqif → Explore traditional Qatari crafts and culture',
+        'Visit Katara Cultural Village → Family photo opportunity at iconic amphitheater',
+        'Lunch at The Pearl-Qatar → Waterfront dining with family-friendly options',
+        'Return journey planning → Ensure travel insurance covers family members',
+        'Arrive home safely → Review QIC multi-product bundle for next adventure'
+      ],
+      ctas: [
+        'Book Roadside Assistance → 100 Coins',
+        'Add Travel Cover → Multi-product badge + 150 Coins',
+        'Share Trip with Family → Referral rewards'
+      ],
+      reward: '100 QIC Coins + "Travel safely, return joyfully - سافر بأمان، عُد بفرح"',
+      coins_earned: 100,
+      xp_earned: 50
+    };
+  }
+
+  _generateMockMissionsForUser(userProfile) {
+    const profile = userProfile?.profile_json || {};
+    const insurancePrefs = profile.insurance_preferences || [];
+    const areasOfInterest = profile.areas_of_interest || [];
+    const vulnerabilities = Array.isArray(profile.vulnerabilities) ? profile.vulnerabilities : [];
+    const firstTimeBuyer = profile.first_time_buyer || false;
+    const age = profile.age || 30;
+    const gender = profile.gender || '';
+
+    const missions = [];
+
+    // Generate missions based on insurance preferences
+    if (insurancePrefs.includes('car') || insurancePrefs.includes('motorcycle')) {
+      missions.push({
+        id: `ai-${Date.now()}-car`,
+        title_en: firstTimeBuyer ? 'Get Your First Car Insurance - 3 Months FREE' : 'Safe Driving Challenge',
+        title_ar: firstTimeBuyer ? 'احصل على تأمينك الأول - 3 أشهر مجانًا' : 'تحدي القيادة الآمنة',
+        description_en: firstTimeBuyer 
+          ? 'Complete your first car insurance purchase and get 3 months FREE coverage as a first-time buyer!'
+          : 'Maintain safe driving habits for 7 consecutive days. Track your trips and avoid risky behaviors.',
+        description_ar: firstTimeBuyer
+          ? 'أكمل عملية شراء تأمين السيارات الأولى واحصل على 3 أشهر مجانًا كمشتري لأول مرة!'
+          : 'حافظ على عادات القيادة الآمنة لمدة 7 أيام متتالية. تتبع رحلاتك وتجنب السلوكيات الخطرة.',
+        category: 'safe_driving',
+        difficulty: firstTimeBuyer ? 'easy' : 'medium',
+        xp_reward: firstTimeBuyer ? 100 : 120,
+        lifescore_impact: firstTimeBuyer ? 15 : 12,
+        coin_reward: firstTimeBuyer ? 10 : 20,
+        ai_generated: true,
+        is_active: true
+      });
+    }
+
+    if (insurancePrefs.includes('health') || (age >= 50 && gender === 'female')) {
+      missions.push({
+        id: `ai-${Date.now()}-health`,
+        title_en: 'Health Check Mission',
+        title_ar: 'مهمة الفحص الصحي',
+        description_en: 'Schedule and complete a preventive health checkup. Upload results to earn rewards.',
+        description_ar: 'قم بجدولة وإكمال فحص صحي وقائي. ارفع النتائج لكسب المكافآت.',
+        category: 'health',
+        difficulty: age >= 50 ? 'easy' : 'medium',
+        xp_reward: age >= 50 ? 80 : 100,
+        lifescore_impact: age >= 50 ? 12 : 10,
+        coin_reward: age >= 50 ? 10 : 20,
+        ai_generated: true,
+        is_active: true
+      });
+    }
+
+    if (insurancePrefs.includes('home') || vulnerabilities.some(v => v.toLowerCase().includes('electronics'))) {
+      missions.push({
+        id: `ai-${Date.now()}-home`,
+        title_en: 'Home Protection Review',
+        title_ar: 'مراجعة حماية المنزل',
+        description_en: 'Review your home insurance coverage and identify gaps. Get personalized recommendations.',
+        description_ar: 'راجع تغطية تأمين منزلك وحدد الفجوات. احصل على توصيات مخصصة.',
+        category: 'family_protection',
+        difficulty: 'medium',
+        xp_reward: 90,
+        lifescore_impact: 8,
+        coin_reward: 20,
+        ai_generated: true,
+        is_active: true
+      });
+    }
+
+    if (areasOfInterest.includes('travel') || vulnerabilities.some(v => v.toLowerCase().includes('travel'))) {
+      missions.push({
+        id: `ai-${Date.now()}-travel`,
+        title_en: 'Travel Insurance Explorer',
+        title_ar: 'مستكشف تأمين السفر',
+        description_en: 'Explore travel insurance options for your next trip. Compare plans and find the best coverage.',
+        description_ar: 'استكشف خيارات تأمين السفر لرحلتك القادمة. قارن الخطط وابحث عن أفضل تغطية.',
+        category: 'lifestyle',
+        difficulty: 'easy',
+        xp_reward: 60,
+        lifescore_impact: 6,
+        coin_reward: 10,
+        ai_generated: true,
+        is_active: true
+      });
+    }
+
+    // Default mission if none generated
+    if (missions.length === 0) {
+      missions.push({
+        id: `ai-${Date.now()}-default`,
+        title_en: 'Complete Your Profile',
+        title_ar: 'أكمل ملفك الشخصي',
+        description_en: 'Add more details to your profile to unlock personalized missions.',
+        description_ar: 'أضف المزيد من التفاصيل إلى ملفك الشخصي لفتح المهام المخصصة.',
+        category: 'lifestyle',
+        difficulty: 'easy',
+        xp_reward: 40,
+        lifescore_impact: 5,
+        coin_reward: 10,
+        ai_generated: true,
+        is_active: true
+      });
+    }
+
+    return missions.slice(0, 5); // Limit to 5 missions
+  }
+
+  _generateMockMissionSteps(mission) {
+    const category = mission.category || 'health';
+    const difficulty = mission.difficulty || 'easy';
+
+    // Category-specific step templates
+    const templates = {
+      safe_driving: [
+        { step_number: 1, title: 'Review Current Coverage', description: 'Log into your QIC account and review your current car insurance policy details and coverage limits.' },
+        { step_number: 2, title: 'Safe Driving Practice', description: 'Practice safe driving for 3 consecutive days: maintain speed limits, use seatbelt always, avoid distractions.' },
+        { step_number: 3, title: 'Complete Safety Assessment', description: 'Complete the QIC Safe Driving Assessment quiz and review personalized recommendations.' }
+      ],
+      health: [
+        { step_number: 1, title: 'Schedule Health Checkup', description: 'Use QIC Health Portal to schedule your preventive health checkup appointment.' },
+        { step_number: 2, title: 'Attend Appointment', description: 'Attend your scheduled health checkup and collect any test results or reports.' },
+        { step_number: 3, title: 'Upload Results', description: 'Upload your health checkup results to the QIC Health Portal to complete the mission and earn rewards.' }
+      ],
+      family_protection: [
+        { step_number: 1, title: 'Review Family Coverage', description: 'Review your current family insurance coverage and identify any gaps in protection.' },
+        { step_number: 2, title: 'Get Recommendations', description: 'Use the QIC Family Protection tool to get personalized coverage recommendations for your family members.' },
+        { step_number: 3, title: 'Update Policy', description: 'Contact QIC to update your policy or add additional coverage based on recommendations.' }
+      ],
+      financial_guardian: [
+        { step_number: 1, title: 'Financial Assessment', description: 'Complete the QIC Financial Health Assessment to understand your current financial protection level.' },
+        { step_number: 2, title: 'Review Life Insurance', description: 'Review your life insurance coverage and calculate if it meets your family\'s future needs.' },
+        { step_number: 3, title: 'Plan Improvement', description: 'Create a plan to improve your financial protection, whether through policy updates or additional coverage.' }
+      ],
+      lifestyle: [
+        { step_number: 1, title: 'Explore Options', description: 'Browse QIC insurance products and services relevant to your interests and lifestyle.' },
+        { step_number: 2, title: 'Compare Plans', description: 'Compare at least 2 different insurance plans that match your needs and budget.' },
+        { step_number: 3, title: 'Take Action', description: 'Complete an action: either get a quote, schedule a consultation, or enroll in a new insurance product.' }
+      ]
+    };
+
+    return templates[category] || templates.health;
   }
 
   /**
@@ -229,7 +988,80 @@ class AIService {
     return `Based on this user profile: ${JSON.stringify(userProfile)}\n\nRecommend 3-5 personalized insurance-related missions. For each mission provide: title, category (safe_driving|health|financial_guardian|family_protection|lifestyle), difficulty (easy|medium|hard), reason (1 sentence), xp_reward (int), lifescore_impact (int). Return as JSON array.`;
   }
   buildScenarioPrompt(scenarioInputs) {
-    return `Analyze this life scenario: ${JSON.stringify(scenarioInputs)}\n\nPredict: lifescore_impact (int -50..50), risk_level (low|medium|high), narrative (2-3 sentences), suggested_missions (array of {id,title,category,xp_reward,lifescore_impact}). Return as JSON.`;
+    const qicTerms = scenarioInputs.qicTerms || {};
+    const category = scenarioInputs.type || scenarioInputs.category || '';
+    const scenarioText = scenarioInputs.scenario || scenarioInputs.text || '';
+    const userProfile = scenarioInputs.user_profile || {};
+    
+    const qicContext = qicTerms.products?.[category] ? `
+QIC Terms & Conditions for ${category}:
+- Eligibility: ${JSON.stringify(qicTerms.products[category].eligibility || {})}
+- Discounts: ${JSON.stringify(qicTerms.products[category].discounts || {})}
+- Qatar-specific rules: ${JSON.stringify(qicTerms.products[category].qatar_specific_rules || [])}
+- Profile factors: ${JSON.stringify(qicTerms.products[category].profile_factors || {})}
+` : '';
+
+    const profileContext = userProfile ? `
+User Profile:
+- Nationality: ${userProfile.nationality || 'Not specified'}
+- Age: ${userProfile.age || 'Not specified'}
+- Gender: ${userProfile.gender || 'Not specified'}
+- Budget: ${userProfile.budget || 'Not specified'} QAR
+- First-time buyer: ${userProfile.first_time_buyer ? 'Yes' : 'No'}
+- Vulnerabilities: ${JSON.stringify(userProfile.vulnerabilities || [])}
+- Insurance preferences: ${JSON.stringify(userProfile.insurance_preferences || [])}
+` : '';
+
+    return `You are an AI insurance advisor for QIC (Qatar Insurance Company) in Qatar. Analyze the following scenario and recommend insurance plans.
+
+${qicContext}
+
+${profileContext}
+
+Scenario:
+Category: ${category}
+Description: ${scenarioText}
+
+IMPORTANT REQUIREMENTS:
+1. ONLY recommend plans relevant to Qatar (all plans must comply with Qatari regulations and requirements)
+2. For each recommended plan, provide a relevance_score (1-10) indicating how relevant it is for the user's selected category and described scenario
+3. Provide an overall scenario_severity_score (1-10) indicating the urgency/severity of the scenario
+4. Sort plans from MOST RELEVANT (highest relevance_score) to LEAST RELEVANT
+5. Consider the user's profile (nationality, age, budget, first-time buyer status) when calculating relevance
+6. Factor in QIC terms & conditions, eligibility requirements, and Qatar-specific rules
+
+Return JSON with this exact structure:
+{
+  "narrative": "2-3 sentences analyzing the scenario",
+  "severity_score": <number 1-10>,
+  "recommended_plans": [
+    {
+      "plan_id": "<plan identifier>",
+      "plan_name": "<plan name>",
+      "plan_type": "${category}",
+      "relevance_score": <number 1-10>,
+      "description": "<why this plan is relevant>",
+      "qatar_compliance": "<Qatar-specific benefits/rules>",
+      "estimated_premium": "<range or estimate>",
+      "key_features": ["<feature1>", "<feature2>"]
+    }
+  ],
+  "suggested_missions": [
+    {
+      "id": "<mission_id>",
+      "title": "<mission title>",
+      "category": "<category>",
+      "difficulty": "easy|medium|hard",
+      "xp_reward": <number>,
+      "lifescore_impact": <number>,
+      "coin_reward": <number>
+    }
+  ],
+  "lifescore_impact": <number -50 to 50>,
+  "risk_level": "low|medium|high"
+}
+
+Ensure ALL plans are Qatar-relevant and sorted by relevance_score (highest first).`;
   }
   buildProfilePrompt(onboardingData) {
     return `Generate AI profile from onboarding: ${JSON.stringify(onboardingData)}\n\nReturn JSON with: risk_level (low|medium|high), health_score (0..100), family_priority (low|medium|high), financial_goals (conservative|moderate|aggressive), insurance_focus (array), ai_personality (encouraging|competitive|educational|supportive).`;
@@ -408,6 +1240,17 @@ class AIService {
 
   getMockScenarioPrediction(scenarioInputs) {
     const { type, inputs } = scenarioInputs;
+    const category = type || scenarioInputs.category || 'car';
+    const userProfile = scenarioInputs.user_profile || {};
+    
+    // Calculate severity score for mock
+    const severityScore = Math.min(10, Math.max(1, 
+      (type === 'travel' || type === 'medical' ? 7 : 5) + 
+      (userProfile.first_time_buyer ? 1 : 0)
+    ));
+    
+    // Generate recommended plans with relevance scores
+    const recommendedPlans = this.generateRecommendedPlansWithScores(category, { ...scenarioInputs, user_profile: userProfile }, severityScore);
     
     const basePrediction = {
       risk_level: 'medium',
@@ -416,10 +1259,21 @@ class AIService {
       potential_outcomes: []
     };
 
+    // Add severity_score and recommended_plans to all returns
+    const enhancedPrediction = {
+      ...basePrediction,
+      severity_score: severityScore,
+      recommended_plans: recommendedPlans,
+      narrative: `Analyzing your ${category} insurance scenario. Based on your profile and QIC terms, we've identified relevant insurance options.`,
+      lifescore_impact: type === 'medical' || type === 'travel' ? 8 : 5,
+      xp_reward: 20,
+      suggested_missions: this.buildSuggestedMissions({ category, user_profile: userProfile }, 5, 20)
+    };
+
     switch (type) {
       case 'lifestyle_change':
         return {
-          ...basePrediction,
+          ...enhancedPrediction,
           risk_level: 'low',
           confidence: 0.85,
           recommendations: [
@@ -436,7 +1290,7 @@ class AIService {
 
       case 'policy_change':
         return {
-          ...basePrediction,
+          ...enhancedPrediction,
           risk_level: 'medium',
           confidence: 0.70,
           recommendations: [
@@ -452,7 +1306,7 @@ class AIService {
         };
 
       default:
-        return basePrediction;
+        return enhancedPrediction;
     }
   }
 

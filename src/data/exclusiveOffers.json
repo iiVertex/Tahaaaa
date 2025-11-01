@@ -1,0 +1,83 @@
+[
+  {
+    "title": "Honda Civic Summer Offer",
+    "offer_type": "car",
+    "conditions_simplified": "Starting from QAR 104,999 with 3 years / 100,000 km warranty."
+  },
+  {
+    "title": "Honda City Summer Offer",
+    "offer_type": "car",
+    "conditions_simplified": "Starting from QAR 53,250 with 5 years / 100,000 km warranty."
+  },
+  {
+    "title": "Honda HR-V Summer Offer",
+    "offer_type": "car",
+    "conditions_simplified": "Starting from QAR 69,499 with 3 years / 100,000 km warranty."
+  },
+  {
+    "title": "Meryal Waterpark Discount",
+    "offer_type": "entertainment",
+    "conditions_simplified": "Valid 01 Apr–31 Aug 2025: Adult QAR 232.50, Junior QAR 183.75; valid 01 Sep–31 Dec 2025: Adult QAR 155.00, Junior QAR 122.50; use Copy & Shop voucher; T&Cs apply."
+  },
+  {
+    "title": "GAC GS8 SUV Special Offer",
+    "offer_type": "car",
+    "conditions_simplified": "Starting from QAR 119,000; pay 50% now and 50% over 2 years at 0% profit; 7 years / 250,000 km warranty; free 1-year registration; leasing, trade-in, and in-house finance available."
+  },
+  {
+    "title": "American Eagle: Up to 75% Off + Extra 10% Off",
+    "offer_type": "fashion",
+    "conditions_simplified": "Up to 75% off plus extra 10% off on styles and accessories at American Eagle Qatar."
+  },
+  {
+    "title": "SHEIN Qatar: Extra 15% Off",
+    "offer_type": "fashion",
+    "conditions_simplified": "Extra 15% off on orders at SHEIN Qatar using exclusive promo code at checkout."
+  },
+  {
+    "title": "Ounass Women's Fashion: Up to 80% Off + Extra 10% Off",
+    "offer_type": "fashion",
+    "conditions_simplified": "Up to 80% off plus extra 10% off on women's dresses, boots, bags, and more at Ounass Qatar."
+  },
+  {
+    "title": "Mothercare Boy's Clothing: Up to 80% Off + Extra 5% Off",
+    "offer_type": "family",
+    "conditions_simplified": "Up to 80% off plus extra 5% off on boys' knitwear, outerwear, polo shirts, and more at Mothercare Qatar."
+  },
+  {
+    "title": "PatPat Kid's Clothing: Up to 80% Off + Extra 15% Off",
+    "offer_type": "family",
+    "conditions_simplified": "Up to 80% off plus extra 15% off on kids' clothing at PatPat Qatar using promo code."
+  },
+  {
+    "title": "Hibobi Kid's Clothing: Up to 80% Off + Extra 12% Off",
+    "offer_type": "family",
+    "conditions_simplified": "Up to 80% off plus extra 12% off on formal wear, pajamas, dresses, tops, and more at Hibobi Qatar."
+  },
+  {
+    "title": "Snoonu Discount Code: Up to 50% Off on Coffee & Sweets",
+    "offer_type": "food",
+    "conditions_simplified": "Up to 50% off on coffee, ice creams, cakes, and more at Snoonu Qatar using promo code."
+  },
+  {
+    "title": "Talabat App Code: Up to 60% Off on App Order",
+    "offer_type": "food",
+    "conditions_simplified": "Up to 60% off on food orders from various cuisines via Talabat Qatar app using promo code."
+  },
+  {
+    "title": "Noon Food Promo Code: Up to 52% Off + Free Delivery on First Orders for New App Users",
+    "offer_type": "food",
+    "conditions_simplified": "New Noon Food Qatar app users get up to 52% off plus free delivery on first three orders using promo code."
+  },
+  {
+    "title": "The Entertainer Discount Code: Buy 1 Get 1 Free + Extra 10% Off on Premium Package",
+    "offer_type": "entertainment",
+    "conditions_simplified": "Buy 1 Get 1 Free offers plus extra 10% off on The Entertainer Premium package with over 1,000 offers and up to QAR 4,000 savings."
+  },
+  {
+    "title": "Ubuy Promo Code: Up to 80% Off + Extra 10% Off on Electronics",
+    "offer_type": "electronics",
+    "conditions_simplified": "Up to 80% off plus extra 10% off on juicers, coffee machines, washing machines, home theatres, and more at Ubuy Qatar using promo code."
+  }
+]
+

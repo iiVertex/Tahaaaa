@@ -5,6 +5,7 @@ import { LifeScoreEngine } from '../services/lifescore.engine.js';
 import UsersRepo from '../repositories/users.repo.js';
 import MissionsRepo from '../repositories/missions.repo.js';
 import UserMissionsRepo from '../repositories/user-missions.repo.js';
+import MissionStepsRepo from '../repositories/mission-steps.repo.js';
 import RewardsRepo from '../repositories/rewards.repo.js';
 import AnalyticsRepo from '../repositories/analytics.repo.js';
 import UserRewardsRepo from '../repositories/user-rewards.repo.js';
@@ -20,36 +21,47 @@ import { AchievementService } from '../services/achievement.service.js';
 import { RetentionService } from '../services/retention.service.js';
 import { MultiProductService } from '../services/multiproduct.service.js';
 import { EcosystemService } from '../services/ecosystem.service.js';
+import { PlayService } from '../services/play.service.js';
+import PlayActivityRepo from '../repositories/play-activity.repo.js';
 
 export function buildContainer() {
   const repos = {
     users: new UsersRepo(db),
     missions: new MissionsRepo(db),
     userMissions: new UserMissionsRepo(db),
+    missionSteps: new MissionStepsRepo(db),
     rewards: new RewardsRepo(db),
     userRewards: new UserRewardsRepo(db),
     analytics: new AnalyticsRepo(db),
-    leaderboard: new LeaderboardRepo(db)
+    leaderboard: new LeaderboardRepo(db),
+    playActivity: new PlayActivityRepo(db)
   };
 
   const engine = new LifeScoreEngine();
   const gamification = new GamificationService(engine, { users: repos.users });
 
-  // Services
+  // Services - create profile first as it's used by mission service
+  const profileService = new ProfileService(repos, gamification);
+  
   const services = {
     gamification,
     ai: aiService,
-    mission: new MissionService(repos, gamification),
+    profile: profileService,
+    mission: new MissionService({ 
+      ...repos,  // missions, userMissions, missionSteps, users, analytics
+      ai: aiService, 
+      profile: profileService 
+    }, gamification),
     reward: new RewardService(repos),
     leaderboard: new LeaderboardService(repos.leaderboard),
-    profile: new ProfileService(repos, gamification),
     onboarding: new OnboardingService(repos, gamification),
     scenario: new ScenarioService(repos),
-          product: new ProductService({ profile: new ProfileService(repos, gamification) }),
+          product: new ProductService({ profile: profileService }),
           achievement: new AchievementService(db, gamification),
           retention: new RetentionService(db),
           multiproduct: new MultiProductService(db),
-          ecosystem: new EcosystemService(db)
+          ecosystem: new EcosystemService(db),
+          play: new PlayService({ playActivity: repos.playActivity, users: repos.users, analytics: repos.analytics })
   };
 
   return { repos, services };

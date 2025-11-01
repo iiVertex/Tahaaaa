@@ -186,10 +186,18 @@ export class GamificationService {
         coins: 0
       };
 
-      // Base rewards from mission
+      // Base rewards from mission - use coin_reward field if available, otherwise calculate based on difficulty
       rewards.xp = missionData.xp_reward || 0;
       rewards.lifescore = missionData.lifescore_impact || 0;
-      rewards.coins = Math.floor((missionData.xp_reward || 0) * 0.1); // 10% of XP as coins
+      
+      // Use mission's coin_reward field (set by AI: easy=10, medium=20, hard=30)
+      if (missionData.coin_reward !== undefined && missionData.coin_reward !== null) {
+        rewards.coins = missionData.coin_reward;
+      } else {
+        // Fallback: calculate based on difficulty if coin_reward not set
+        const difficultyMap = { easy: 10, medium: 20, hard: 30, expert: 30 };
+        rewards.coins = difficultyMap[missionData.difficulty] || 10;
+      }
 
       // Apply rewards
       const xpResult = await this.awardXP(userId, rewards.xp, 'mission_completion');

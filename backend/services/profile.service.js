@@ -10,8 +10,25 @@ export class ProfileService {
 
   async getProfile(userId) {
     const user = await this.usersRepo.getById(userId);
-    if (!user) return null;
+    if (!user) {
+      logger.warn('User not found in getProfile', { userId });
+      return null;
+    }
+    
+    // Ensure existing users without coins get 1000 default
+    if (user.coins === undefined || user.coins === null) {
+      logger.info('User missing coins, initializing to 1000', { userId });
+      await this.usersRepo.update(userId, { coins: 1000 });
+      user.coins = 1000;
+    }
+    
     const userProfile = await this.usersRepo.getUserProfile(userId);
+    logger.info('getProfile retrieved userProfile', { 
+      userId, 
+      hasUserProfile: !!userProfile, 
+      profileJsonKeys: userProfile ? Object.keys(userProfile.profile_json || {}) : []
+    });
+    
     const stats = await this.gamification.getUserStats(userId);
     let behavior = null;
     if (this.analyticsRepo?.getBehaviorSummary) {
@@ -23,26 +40,85 @@ export class ProfileService {
       stats.lifescoreTrend = behavior.lifescore_trend || 'flat';
     }
     const suggestions = await this.gamification.getAchievementSuggestions(userId);
-    return { user, userProfile, stats, suggestions };
+    
+    // Always return actual userProfile if it exists, otherwise return empty structure
+    // This allows mission generation to distinguish between "no profile" and "empty profile"
+    return { 
+      user, 
+      userProfile: userProfile || { profile_json: {} }, 
+      stats, 
+      suggestions 
+    };
   }
 
   async updateProfile(userId, payload) {
-    const { username, avatar_url, preferences, settings } = payload || {};
+    const { username, avatar_url, preferences, settings, profile_json, nickname } = payload || {};
+    
+    logger.info('ProfileService.updateProfile called', { userId, hasProfileJson: !!profile_json, keys: Object.keys(payload || {}) });
+    
+    // Update user fields (username, avatar_url)
     if (username || avatar_url) {
       await this.usersRepo.update(userId, { username, avatar_url });
     }
-    if (preferences || settings) {
-      const existing = await this.usersRepo.getUserProfile(userId);
+    
+    // Get existing profile
+    const existing = await this.usersRepo.getUserProfile(userId);
+    logger.info('Existing profile retrieved', { userId, exists: !!existing, hasProfileJson: !!(existing?.profile_json) });
+    
+    // Merge profile_json if provided (new comprehensive format)
+    if (profile_json) {
+      // If profile_json is explicitly empty object, clear everything
+      const isClearing = Object.keys(profile_json).length === 0 && existing?.profile_json;
+      const mergedProfile = isClearing 
+        ? {} // Completely clear if explicitly set to empty
+        : {
+            ...(existing?.profile_json || {}),
+            ...profile_json, // New fields override old ones
+            // Preserve preferences and settings if they exist in payload but merge with profile_json
+            preferences: profile_json.preferences !== undefined ? (profile_json.preferences || existing?.profile_json?.preferences || {}) : existing?.profile_json?.preferences || {},
+            settings: profile_json.settings !== undefined ? (profile_json.settings || existing?.profile_json?.settings || {}) : existing?.profile_json?.settings || {}
+          };
+      
+      logger.info('Merging profile_json', { 
+        userId, 
+        existingKeys: Object.keys(existing?.profile_json || {}),
+        newKeys: Object.keys(profile_json),
+        mergedKeys: Object.keys(mergedProfile),
+        isClearing: isClearing
+      });
+      
+      if (!existing) {
+        const created = await this.usersRepo.createUserProfile(userId, mergedProfile);
+        logger.info('Profile created', { userId, created: !!created });
+      } else {
+        const updated = await this.usersRepo.updateUserProfile(userId, mergedProfile);
+        logger.info('Profile updated', { userId, updated: !!updated });
+      }
+    } else if (preferences || settings) {
+      // Legacy: handle preferences/settings separately if profile_json not provided
       const profileData = {
         ...(existing?.profile_json || {}),
         preferences: { ...(existing?.profile_json?.preferences || {}), ...(preferences || {}) },
         settings: { ...(existing?.profile_json?.settings || {}), ...(settings || {}) }
       };
-      if (!existing) await this.usersRepo.createUserProfile(userId, profileData);
-      else await this.usersRepo.updateUserProfile(userId, profileData);
+      if (!existing) {
+        await this.usersRepo.createUserProfile(userId, profileData);
+      } else {
+        await this.usersRepo.updateUserProfile(userId, profileData);
+      }
     }
+    
     await this.analyticsRepo?.insertBehaviorEvent?.({ user_id: userId, event_type: 'profile_updated', created_at: new Date().toISOString() });
-    return this.getProfile(userId);
+    
+    // Retrieve and return the updated profile
+    const updated = await this.getProfile(userId);
+    logger.info('Returning updated profile', { 
+      userId, 
+      hasUser: !!updated?.user, 
+      hasUserProfile: !!updated?.userProfile,
+      profileJsonKeys: Object.keys(updated?.userProfile?.profile_json || {})
+    });
+    return updated;
   }
 }
 

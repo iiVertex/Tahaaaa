@@ -4,10 +4,13 @@ import { trackFeatureUsageThrottled } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { useTranslation } from 'react-i18next';
 import { useCoins } from '@/lib/coins';
+import { useQueryClient } from '@tanstack/react-query';
+import { getProfile } from '@/lib/api';
 
 export default function QuoteDrawer({ open, onClose, productId }:{ open: boolean; onClose: ()=>void; productId?: string }) {
   const { t } = useTranslation();
-  const { addCoins } = useCoins();
+  const { refreshCoins } = useCoins();
+  const qc = useQueryClient();
   const [age, setAge] = useState('');
   const [city, setCity] = useState('');
   const [busy, setBusy] = useState(false);
@@ -30,7 +33,8 @@ export default function QuoteDrawer({ open, onClose, productId }:{ open: boolean
               await startQuote({ product_id: productId, inputs: { age, city } });
               track('quote_complete', { product_id: productId });
               await trackFeatureUsageThrottled('quote_complete', { product_id: productId });
-              addCoins(10);
+              await qc.invalidateQueries({ queryKey: ['profile'] });
+              await refreshCoins(); // Refresh coins from backend
               onClose();
             } finally { setBusy(false); }
           }}>{busy ? (t('quote.starting') || 'Starting…') : (t('quote.cta') || 'Get Estimate')}</button>

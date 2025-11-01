@@ -29,6 +29,7 @@ import { container } from './di/container.js';
 import offersRoutes from './routes/offers.js';
 import productsRoutes from './routes/products.js';
 import achievementsRoutes from './routes/achievements.js';
+import playRoutes, { createPlayRouter } from './routes/play.js';
 
 // Load environment variables
 loadEnv();
@@ -77,6 +78,7 @@ app.use('/api/ecosystem', ecosystemRoutes);
 app.use('/api/offers', offersRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/achievements', achievementsRoutes);
+app.use('/api/play', createPlayRouter ? createPlayRouter(container.services) : playRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

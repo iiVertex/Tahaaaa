@@ -331,7 +331,25 @@ export default function Showcase() {
   }
 
   return (
-    <MajlisLayout titleKey="showcase.title" icon={<DatePalmIcon size={18} color="var(--qic-secondary)" />}> 
+    <MajlisLayout titleKey="showcase.title" icon={<DatePalmIcon size={18} color="var(--qic-secondary)" />}>
+      {/* Welcome Description */}
+      <div className="qic-card-majlis" style={{ 
+        padding: 20, 
+        marginBottom: 20, 
+        background: 'linear-gradient(135deg, rgba(68, 64, 151, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+        border: '2px solid var(--qic-secondary)',
+        borderRadius: 12
+      }}>
+        <div style={{ fontSize: 16, lineHeight: 1.8, color: 'var(--qic-text)' }}>
+          <strong style={{ color: 'var(--qic-primary)', fontSize: 18 }}>🤖 Your AI-Powered Insurance Advisor</strong>
+          <p style={{ margin: '12px 0 0 0' }}>
+            Imagine having a personal insurance expert who understands your lifestyle, dreams, and concerns. 
+            Describe any scenario—from planning your next adventure to protecting your growing family—and our AI will analyze your needs 
+            and recommend the perfect insurance solutions tailored just for you. See how different scenarios could impact your life, 
+            and discover coverage that gives you peace of mind.
+          </p>
+        </div>
+      </div> 
       {error && <div style={{ color: 'salmon' }}>{error}</div>}
       {message && <div style={{ color: 'seagreen' }}>{message}</div>}
       {userName && (
@@ -411,7 +429,7 @@ export default function Showcase() {
                   ⚠️ Scenarios You Might Encounter (with LifeScore Impact)
                 </h4>
                 {result.scenarios && Array.isArray(result.scenarios) && result.scenarios.length > 0 ? (
-                  <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ display: 'grid', gap: 8 }}>
                     {result.scenarios.map((scenario: string, idx: number) => {
                       // Extract LifeScore impact if embedded in scenario text (format: "text - LifeScore impact: -X" or "-X LifeScore")
                       const lifescoreMatch = scenario.match(/LifeScore\s*(?:impact)?\s*[:\-]\s*-?(\d+)/i) || scenario.match(/-(\d+)\s*LifeScore/i);
@@ -845,8 +863,8 @@ export default function Showcase() {
                 .filter((p: any) => p && (p.fullName || p.name || p.plan_name)) // Filter out invalid plans
                 .map((p:any, idx:number) => (
                 <div key={idx} className="qic-card" style={{ padding: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
                       <div><b>{p.fullName || p.name || p.plan_name || 'Plan'}</b> · {p.type || 'Insurance'}</div>
                       <div style={{ opacity: 0.8 }}>{p.conciseDescription || p.description || ''}</div>
                     </div>
@@ -1019,11 +1037,11 @@ export default function Showcase() {
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button onClick={() => onStartMission(m.id)} disabled={loading}>{t('start')}</button>
                         <button onClick={() => onCompleteMission(m.id)} disabled={loading}>{t('complete')}</button>
-                      </div>
-                    </div>
                   </div>
-                ))}
+                </div>
               </div>
+            ))}
+          </div>
             </>
           )}
         </div>
@@ -1061,12 +1079,12 @@ export default function Showcase() {
       )}
 
       {/* Coins status (UI-only) */}
-      <div className="qic-card" style={{ padding: 16 }}>
+        <div className="qic-card" style={{ padding: 16 }}>
         <h3>{t('showcase.status')}</h3>
         <div>Coins: <b>{coins}</b></div>
         <div>{t('stats.xp')}: <b>{profile?.stats?.xp ?? profile?.user?.xp ?? 0}</b></div>
         <div>{t('stats.level')}: <b>{profile?.stats?.level ?? profile?.user?.level ?? 1}</b></div>
-      </div>
+        </div>
 
       <QuoteDrawer open={quoteOpen} onClose={() => { setQuoteOpen(false); setQuoteProductId(undefined); }} productId={quoteProductId} />
       

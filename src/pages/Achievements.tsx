@@ -54,6 +54,24 @@ export default function Achievements() {
 
   return (
     <MajlisLayout titleKey="achievements.title" icon={<IslamicStarPattern size={18} color="var(--qic-secondary)" />}>
+      {/* Welcome Description */}
+      <div className="qic-card-majlis" style={{ 
+        padding: 20, 
+        marginBottom: 20, 
+        background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 193, 7, 0.15) 100%)',
+        border: '2px solid #FFD700',
+        borderRadius: 12
+      }}>
+        <div style={{ fontSize: 16, lineHeight: 1.8, color: 'var(--qic-text)' }}>
+          <strong style={{ color: 'var(--qic-primary)', fontSize: 18 }}>🏆 Celebrate Your Journey</strong>
+          <p style={{ margin: '12px 0 0 0' }}>
+            Every step forward deserves recognition. Here's where your dedication shines—view all the missions you've conquered, 
+            the badges you've earned, and the milestones you've achieved. Your accomplishments tell a story of growth, protection, and smart choices. 
+            Share your wins and inspire others to build their own path to financial security!
+          </p>
+        </div>
+      </div>
+      
       {loading && <div className="qic-card-majlis" style={{ padding: 12 }}>{t('loading')}</div>}
       {error && <div style={{ color: 'salmon' }}>{error}</div>}
       

@@ -300,6 +300,23 @@ export default function Profile() {
 
   return (
     <MajlisLayout titleKey="profile.title">
+      {/* Welcome Description */}
+      <div className="qic-card-majlis" style={{ 
+        padding: 20, 
+        marginBottom: 20, 
+        background: 'linear-gradient(135deg, rgba(68, 64, 151, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+        border: '2px solid var(--qic-secondary)',
+        borderRadius: 12
+      }}>
+        <div style={{ fontSize: 16, lineHeight: 1.8, color: 'var(--qic-text)' }}>
+          <strong style={{ color: 'var(--qic-primary)', fontSize: 18 }}>👤 Make It Uniquely Yours</strong>
+          <p style={{ margin: '12px 0 0 0' }}>
+            Your profile is the key to a truly personalized experience. Tell us about yourself—your age, lifestyle, concerns, and goals— 
+            and we'll craft missions, recommendations, and rewards that speak directly to your needs. The more we know about you, 
+            the better we can protect what matters most to you. Take a few moments to complete your profile and unlock a world of tailored possibilities.
+          </p>
+        </div>
+      </div>
       {hasClerk && (
         <SignedOut>
           <div className="qic-card" style={{ padding: 16, marginBottom: 16, background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 8 }}>

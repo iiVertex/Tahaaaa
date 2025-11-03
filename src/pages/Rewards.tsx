@@ -64,6 +64,23 @@ export default function Rewards() {
 
   return (
     <MajlisLayout titleKey="rewards.title" icon={<DatePalmIcon size={18} color="var(--qic-secondary)" />}>
+      {/* Welcome Description */}
+      <div className="qic-card-majlis" style={{ 
+        padding: 20, 
+        marginBottom: 20, 
+        background: 'linear-gradient(135deg, rgba(255, 193, 7, 0.15) 0%, rgba(255, 152, 0, 0.15) 100%)',
+        border: '2px solid #FFC107',
+        borderRadius: 12
+      }}>
+        <div style={{ fontSize: 16, lineHeight: 1.8, color: 'var(--qic-text)' }}>
+          <strong style={{ color: 'var(--qic-primary)', fontSize: 18 }}>💰 Transform Your Coins Into Real Value</strong>
+          <p style={{ margin: '12px 0 0 0' }}>
+            Your effort deserves real rewards. Redeem your hard-earned coins for exclusive discounts, bundle deals, and special offers 
+            on QIC insurance products. Create custom insurance bundles that match your needs while saving money—every coin you earn 
+            brings you closer to comprehensive protection that fits your lifestyle and budget. Start saving today!
+          </p>
+        </div>
+      </div>
       {userName && (
         <div style={{ marginBottom: 12, fontSize: 16, color: 'var(--qic-primary)', fontWeight: 500 }}>
           Hey {userName}, you have {coins.toLocaleString()} coins! 💰

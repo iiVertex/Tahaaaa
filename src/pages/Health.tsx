@@ -178,6 +178,23 @@ export default function Health() {
       icon={<DallahIcon size={20} color="var(--qic-secondary)" />}
       headerExtras={<span style={{ color: 'var(--qic-muted)' }}>{status}</span>}
     >
+      {/* Welcome Description */}
+      <div className="qic-card-majlis" style={{ 
+        padding: 20, 
+        marginBottom: 20, 
+        background: 'linear-gradient(135deg, rgba(76, 175, 80, 0.15) 0%, rgba(56, 142, 60, 0.15) 100%)',
+        border: '2px solid #4CAF50',
+        borderRadius: 12
+      }}>
+        <div style={{ fontSize: 16, lineHeight: 1.8, color: 'var(--qic-text)' }}>
+          <strong style={{ color: 'var(--qic-primary)', fontSize: 18 }}>📊 Your LifeScore Dashboard</strong>
+          <p style={{ margin: '12px 0 0 0' }}>
+            Welcome to your command center! Here's where you see the big picture—your LifeScore reflects how well you're protecting 
+            what matters most. Watch it grow as you complete missions, make smart insurance choices, and build better habits. 
+            Every action you take moves you closer to financial security and peace of mind. This is your journey, visualized.
+          </p>
+        </div>
+      </div>
       {userName && (
         <div style={{ marginBottom: 12, fontSize: 16, color: 'var(--qic-primary)', fontWeight: 500 }}>
           Welcome back, {userName}! 👋

@@ -28,6 +28,23 @@ export default function InsuranceCart() {
   if (cartItemCount === 0) {
     return (
       <MajlisLayout titleKey="cart.title" icon={<DatePalmIcon size={18} color="var(--qic-secondary)" />}>
+        {/* Welcome Description */}
+        <div className="qic-card-majlis" style={{ 
+          padding: 20, 
+          marginBottom: 20, 
+          background: 'linear-gradient(135deg, rgba(68, 64, 151, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+          border: '2px solid var(--qic-secondary)',
+          borderRadius: 12
+        }}>
+          <div style={{ fontSize: 16, lineHeight: 1.8, color: 'var(--qic-text)' }}>
+            <strong style={{ color: 'var(--qic-primary)', fontSize: 18 }}>🛒 Build Your Perfect Protection Plan</strong>
+            <p style={{ margin: '12px 0 0 0' }}>
+              Your insurance cart is where your personalized protection plan comes together. Add insurance products that match your lifestyle 
+              and needs, compare coverage options, and see how bundling can save you money. Once you're ready, get instant quotes and complete 
+              your purchase—all in one place. Your peace of mind is just a few clicks away.
+            </p>
+          </div>
+        </div>
         <div className="qic-card" style={{ padding: 48, textAlign: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🛒</div>
           <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{t('cart.empty') || 'Your cart is empty'}</h3>
@@ -56,6 +73,23 @@ export default function InsuranceCart() {
 
   return (
     <MajlisLayout titleKey="cart.title" icon={<DatePalmIcon size={18} color="var(--qic-secondary)" />}>
+      {/* Welcome Description */}
+      <div className="qic-card-majlis" style={{ 
+        padding: 20, 
+        marginBottom: 20, 
+        background: 'linear-gradient(135deg, rgba(68, 64, 151, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+        border: '2px solid var(--qic-secondary)',
+        borderRadius: 12
+      }}>
+        <div style={{ fontSize: 16, lineHeight: 1.8, color: 'var(--qic-text)' }}>
+          <strong style={{ color: 'var(--qic-primary)', fontSize: 18 }}>🛒 Build Your Perfect Protection Plan</strong>
+          <p style={{ margin: '12px 0 0 0' }}>
+            Your insurance cart is where your personalized protection plan comes together. Add insurance products that match your lifestyle 
+            and needs, compare coverage options, and see how bundling can save you money. Once you're ready, get instant quotes and complete 
+            your purchase—all in one place. Your peace of mind is just a few clicks away.
+          </p>
+        </div>
+      </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
           <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>

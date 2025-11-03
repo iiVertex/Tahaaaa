@@ -148,6 +148,23 @@ export default function Play() {
 
   return (
     <MajlisLayout titleKey="play.title" icon={<DatePalmIcon size={18} color="var(--qic-secondary)" />}>
+      {/* Welcome Description */}
+      <div className="qic-card-majlis" style={{ 
+        padding: 20, 
+        marginBottom: 20, 
+        background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)',
+        border: '2px solid var(--qic-accent)',
+        borderRadius: 12
+      }}>
+        <div style={{ fontSize: 16, lineHeight: 1.8, color: 'var(--qic-text)' }}>
+          <strong style={{ color: 'var(--qic-primary)', fontSize: 18 }}>🎰 Spin to Win Amazing Rewards</strong>
+          <p style={{ margin: '12px 0 0 0' }}>
+            Feel the excitement as you spin the wheel and unlock incredible prizes tailored to your nationality and lifestyle! 
+            Win coins, exclusive insurance offers, or personalized travel itineraries that transform your Qatar experience. 
+            Every spin brings new possibilities—take your chance and see what fortune has in store for you today!
+          </p>
+        </div>
+      </div>
       {userName && (
         <div style={{ marginBottom: 12, fontSize: 16, color: 'var(--qic-primary)', fontWeight: 500 }}>
           Hi {userName}! Ready for your daily spin? 🦅

@@ -1,14 +1,24 @@
 import raw from './insurancePlans.json';
 
-export type PlanType = 'car' | 'motorcycle' | 'travel' | 'home' | 'boat' | 'medical';
+export type PlanType = 'car' | 'motorcycle' | 'travel' | 'home' | 'boat' | 'medical' | 'personal_accident' | 'business' | 'golf';
+
+export type InsuranceCoverage = {
+  item: string;
+  limit: string;
+  description: string;
+};
 
 export type InsurancePlan = {
-  type: PlanType;
-  fullName: string;
-  conciseDescription: string;
-  keyFeatures: string[];
-  costs: Record<string, any>;
-  otherFactors: Record<string, any>;
+  insurance_type: string;
+  plan_name: string;
+  standard_coverages: InsuranceCoverage[];
+  optional_add_ons: InsuranceCoverage[];
+  exclusions: InsuranceCoverage[];
+};
+
+export type InsuranceTypeGroup = {
+  insurance_type: string;
+  plans: InsurancePlan[];
 };
 
 function normalizeType(t: string): PlanType {
@@ -16,28 +26,46 @@ function normalizeType(t: string): PlanType {
   if (s.includes('car')) return 'car';
   if (s.includes('motorcycle')) return 'motorcycle';
   if (s.includes('travel')) return 'travel';
-  if (s.includes('home')) return 'home';
+  if (s.includes('home') || s.includes('contents')) return 'home';
   if (s.includes('boat') || s.includes('yacht')) return 'boat';
-  if (s.includes('life') || s.includes('medical') || s.includes('qatarcare')) return 'medical';
+  if (s.includes('health') || s.includes('medical') || s.includes('qatarcare') || s.includes('visitor')) return 'medical';
+  if (s.includes('personal') && s.includes('accident')) return 'personal_accident';
+  if (s.includes('business') || s.includes('shield')) return 'business';
+  if (s.includes('golf')) return 'golf';
   return 'home';
 }
 
-export const insurancePlans: InsurancePlan[] = (raw as any).insurance_plans.map((p: any) => ({
-  type: normalizeType(p.type || p.full_name || ''),
-  fullName: p.full_name,
-  conciseDescription: p.concise_description,
-  keyFeatures: Array.isArray(p.key_features) ? p.key_features : [],
-  costs: p.costs || {},
-  otherFactors: p.other_factors || {}
-}));
+// Parse new JSON structure
+export const insuranceTypes: InsuranceTypeGroup[] = Array.isArray(raw) ? raw : [];
+
+// Flatten to plans array for backward compatibility
+export const insurancePlans: InsurancePlan[] = insuranceTypes.flatMap(typeGroup => 
+  typeGroup.plans.map(plan => ({
+    ...plan,
+    insurance_type: typeGroup.insurance_type
+  }))
+);
+
+// Helper to get all insurance types
+export function getAllInsuranceTypes(): string[] {
+  return insuranceTypes.map(t => t.insurance_type);
+}
+
+// Helper to get plans by insurance type
+export function getPlansByType(type: string): InsurancePlan[] {
+  const typeGroup = insuranceTypes.find(t => 
+    t.insurance_type.toLowerCase() === type.toLowerCase()
+  );
+  return typeGroup?.plans || [];
+}
 
 const KEYWORDS: Record<PlanType, string[]> = {
-  car: ['car', 'auto', 'vehicle', 'sedan', 'suv', 'accident', 'tpl', 'agency repair'],
+  car: ['car', 'auto', 'vehicle', 'sedan', 'suv', 'accident', 'tpl', 'agency repair', 'road trip', 'driving', 'road', 'trip'],
   motorcycle: ['motorcycle', 'bike', 'rider', 'helmet', 'two-wheeler'],
-  travel: ['travel', 'trip', 'vacation', 'visa', 'schengen', 'flight', 'baggage', 'airport'],
-  home: ['home', 'house', 'apartment', 'contents', 'theft', 'flood', 'fire'],
+  travel: ['travel', 'trip', 'vacation', 'visa', 'schengen', 'flight', 'baggage', 'airport', 'europe', 'winter', 'skiing'],
+  home: ['home', 'house', 'apartment', 'contents', 'theft', 'flood', 'fire', 'renting', 'rented', 'landlord'],
   boat: ['boat', 'yacht', 'jet ski', 'marine', 'dhows', 'salvage'],
-  medical: ['medical', 'health', 'hospital', 'inpatient', 'outpatient', 'qlm', 'insurance card']
+  medical: ['medical', 'health', 'hospital', 'inpatient', 'outpatient', 'qlm', 'insurance card', 'visitor', 'visitors']
 };
 
 export type ProfileContext = {
@@ -51,14 +79,50 @@ export function matchPlansByScenario(text: string, categoryHint?: PlanType): Ins
   const lc = (text || '').toLowerCase();
   const scores = insurancePlans.map((plan) => {
     let score = 0;
-    if (categoryHint && plan.type === categoryHint) score += 3;
-    const kws = KEYWORDS[plan.type];
-    for (const k of kws) if (lc.includes(k)) score += 1;
-    // feature cues
-    for (const f of plan.keyFeatures) if (lc.includes((f || '').toLowerCase())) score += 0.5;
+    const planTypeNormalized = normalizeType(plan.insurance_type || '');
+    
+    // STRICT: If categoryHint provided, ONLY match that category (direct relevance requirement)
+    if (categoryHint) {
+      if (planTypeNormalized !== categoryHint) {
+        return { plan, score: 0 }; // Exclude non-relevant categories
+      }
+      score += 10; // High priority for exact category match
+    }
+    
+    const kws = KEYWORDS[planTypeNormalized] || [];
+    // Count keyword matches for relevance scoring
+    let keywordMatches = 0;
+    for (const k of kws) {
+      if (lc.includes(k)) {
+        score += 2; // Higher weight for keyword matches
+        keywordMatches++;
+      }
+    }
+    
+    // If no keyword matches and no category hint, exclude this plan (not directly relevant)
+    if (!categoryHint && keywordMatches === 0) {
+      return { plan, score: 0 };
+    }
+    
+    // Match against coverage items (lower priority)
+    if (plan.standard_coverages && Array.isArray(plan.standard_coverages)) {
+      for (const cov of plan.standard_coverages) {
+        const covText = typeof cov === 'string' ? cov : (cov.item || cov.description || '');
+        if (lc.includes(covText.toLowerCase())) score += 0.5;
+      }
+    }
+    
     return { plan, score };
   });
-  return scores.sort((a, b) => b.score - a.score).map((x) => x.plan);
+  
+  // Filter out zero-score plans (not directly relevant) and return top matches
+  const relevantPlans = scores
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.plan);
+  
+  // Return max 3 directly relevant plans
+  return relevantPlans.slice(0, 3);
 }
 
 export function rerankByProfile(plans: InsurancePlan[], profile: ProfileContext): InsurancePlan[] {
@@ -85,8 +149,11 @@ export function rerankByProfile(plans: InsurancePlan[], profile: ProfileContext)
 }
 
 export type Tip = { title: string; detail: string };
-export function getTipsForPlanType(t: PlanType): Tip[] {
-  switch (t) {
+export function getTipsForPlanType(t: PlanType | string): Tip[] {
+  // Normalize input
+  const normalized = typeof t === 'string' ? (t.toLowerCase() as PlanType) : t;
+  
+  switch (normalized) {
     case 'travel':
       return [
         { title: 'Timing', detail: 'Buy 7–14 days before travel for smooth visa support.' },
@@ -119,6 +186,9 @@ export function getTipsForPlanType(t: PlanType): Tip[] {
         { title: 'Network', detail: 'Check hospital network and evacuation inclusion.' },
         { title: 'Visitors', detail: 'Visitor emergency limits can be QR 150,000.' }
       ];
+    default:
+      // Always return an array - never undefined
+      return [];
   }
 }
 
@@ -137,5 +207,4 @@ export function getDiscounts(profile: ProfileContext, date = new Date()): Discou
   if (first) out.push({ kind: 'first_time', label: 'First-time Buyer Offer', rationale: 'Introductory discount for new customers.' });
   return out;
 }
-
 

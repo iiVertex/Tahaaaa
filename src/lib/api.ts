@@ -25,7 +25,7 @@ export async function health() {
 export async function getMissions() {
   try {
     const raw = await request(() => api.get('/missions')) as any;
-    // Backend returns: { success: true, data: { missions: [...], pagination: {...} } }
+    // Backend returns: { success: true, data: { missions: [...], initialStageComplete: boolean, pagination: {...} } }
     // Or fallback formats for backward compatibility
     const missions = Array.isArray(raw?.data?.missions) 
       ? raw.data.missions 
@@ -36,7 +36,7 @@ export async function getMissions() {
       : [];
     
     // Ensure missions have user_progress attached (backend includes it)
-    return missions.map((m: any) => {
+    const parsedMissions = missions.map((m: any) => {
       const parsed: any = MissionSchema.partial().parse(m);
       // Ensure user_progress is preserved if present
       if (m.user_progress) {
@@ -44,13 +44,20 @@ export async function getMissions() {
       }
       return parsed;
     });
+    
+    // Return missions with initialStageComplete flag
+    const result: any = parsedMissions;
+    result.initialStageComplete = raw?.data?.initialStageComplete ?? false;
+    return result;
   } catch (error: any) {
     if (isDev && isNetworkError(error)) {
       console.info('[Backend unavailable] Using mock missions. Start backend with: npm run dev:both');
-      return [
+      const mockMissions = [
         { id: 'walk-10k', title_en: 'Walk 10,000 steps', category: 'health', difficulty: 'easy', xp_reward: 10, lifescore_impact: 2, coin_reward: 10 },
         { id: 'review-policy', title_en: 'Review your policy', category: 'insurance', difficulty: 'medium', xp_reward: 20, lifescore_impact: 5, coin_reward: 20 }
       ] as any;
+      (mockMissions as any).initialStageComplete = false;
+      return mockMissions;
     }
     throw error;
   }
@@ -239,8 +246,13 @@ export async function getQuoteStatus(id: string) {
 }
 
 // Referrals
-export async function shareReferral() {
-  return request(() => api.post('/referrals/share', {}));
+export async function shareReferral(context?: any) {
+  return request(() => api.post('/referrals/share', context || {}));
+}
+
+// Plan Detail Generation
+export async function simulatePlanDetail(data: { plan: any; user_profile: any; scenario_description?: string }) {
+  return request(() => api.post('/ai/plan-detail', data));
 }
 
 // Analytics
@@ -410,6 +422,20 @@ export async function trackFeatureUsageThrottled(featureName: string, metadata?:
       console.info('[Backend unavailable] Analytics tracking disabled. Start backend with: npm run dev:both');
       offlineWarningShown = true;
     }
+  }
+}
+
+// Bundle Save
+export async function saveBundle(bundleData: any) {
+  try {
+    const raw = await request(() => api.post('/bundles/save', bundleData)) as any;
+    return raw?.data || raw || { success: true };
+  } catch (error: any) {
+    if (isDev && isNetworkError(error)) {
+      console.info('[Backend unavailable] Bundle save unavailable. Start backend with: npm run dev:both');
+      throw new Error('Backend unavailable. Please ensure backend is running.');
+    }
+    throw error;
   }
 }
 

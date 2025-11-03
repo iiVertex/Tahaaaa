@@ -9,14 +9,16 @@ const Rewards = React.lazy(() => import('./pages/Rewards'));
 const Missions = React.lazy(() => import('./pages/Missions'));
 const Achievements = React.lazy(() => import('./pages/Achievements'));
 const Profile = React.lazy(() => import('./pages/Profile'));
-const Scenarios = React.lazy(() => import('./pages/Scenarios'));
 const Showcase = React.lazy(() => import('./pages/Showcase'));
+const InsuranceCart = React.lazy(() => import('./pages/InsuranceCart'));
 import { ToastProvider } from '@/components/Toast';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import LanguageToggle from '@/components/LanguageToggle';
 import OfflineBanner from '@/components/OfflineBanner';
 import BackendStatusBanner from '@/components/BackendStatusBanner';
+import CoinsCounter from '@/components/CoinsCounter';
 import { useTranslation } from 'react-i18next';
+import { InsuranceCartProvider } from '@/contexts/InsuranceCartContext';
 
 // Clerk publishable key - will be undefined if not configured (graceful degradation)
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || undefined;
@@ -75,12 +77,14 @@ function AppContent() {
     { to: '/missions', label: t('missions.title') },
     { to: '/rewards', label: t('rewards.title') },
     { to: '/achievements', label: t('achievements.title') },
-    { to: '/scenarios', label: t('scenarios.title') },
     { to: '/profile', label: t('profile.title') },
-    { to: '/showcase', label: t('showcase.title') }
+    { to: '/showcase', label: t('showcase.title') || 'AI Simulate' },
+    { to: '/insurance-cart', label: t('cart.title') || 'Insurance Cart' }
   ];
   return (
-    <ToastProvider>
+    <InsuranceCartProvider>
+      <ToastProvider>
+        <CoinsCounter />
       <div style={{ padding: 16 }}>
         <OfflineBanner />
         <BackendStatusBanner />
@@ -142,15 +146,16 @@ function AppContent() {
               <Route path="/missions" element={<Missions />} />
               <Route path="/rewards" element={<Rewards />} />
               <Route path="/achievements" element={<Achievements />} />
-              <Route path="/scenarios" element={<Scenarios />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/showcase" element={<Showcase />} />
+              <Route path="/insurance-cart" element={<InsuranceCart />} />
             </Routes>
             </React.Suspense>
           </ErrorBoundary>
         </div>
       </div>
-    </ToastProvider>
+      </ToastProvider>
+    </InsuranceCartProvider>
   );
 }
 

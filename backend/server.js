@@ -16,7 +16,7 @@ import profileRoutes, { createProfileRouter } from './routes/profile.js';
 import aiRoutes, { createAiRouter } from './routes/ai.js';
 import healthRoutes from './routes/health.js';
 import socialRoutes, { createSocialRouter } from './routes/social.js';
-import rewardsRoutes, { createRewardsRouter } from './routes/rewards.js';
+import rewardsRoutes, { createRewardsRouter, createBundlesRouter } from './routes/rewards.js';
 import scenariosRoutes, { createScenariosRouter } from './routes/scenarios.js';
 import personalizationRoutes, { createPersonalizationRouter } from './routes/personalization.js';
 import analyticsRoutes from './routes/analytics.js';
@@ -67,6 +67,7 @@ app.use('/api/profile', createProfileRouter ? createProfileRouter(container.serv
 app.use('/api/ai', createAiRouter ? createAiRouter(container.services) : aiRoutes);
 app.use('/api/social', createSocialRouter ? createSocialRouter(container.services) : socialRoutes);
 app.use('/api/rewards', createRewardsRouter ? createRewardsRouter(container.services) : rewardsRoutes);
+app.use('/api/bundles', createBundlesRouter ? createBundlesRouter(container.services) : express.Router());
 app.use('/api/scenarios', createScenariosRouter ? createScenariosRouter(container.services) : scenariosRoutes);
 app.use('/api/personalization', createPersonalizationRouter ? createPersonalizationRouter(container.services) : personalizationRoutes);
 app.use('/api/analytics', analyticsRoutes);

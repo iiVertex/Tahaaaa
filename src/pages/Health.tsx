@@ -36,6 +36,7 @@ export default function Health() {
   const [loading, setLoading] = useState<boolean>(true);
   const toast = useToast();
   const [prefs, setPrefs] = useState<any>(null);
+  const [userName, setUserName] = useState<string>('');
 
   useEffect(() => {
     setStatus(t('status.checking'));
@@ -48,7 +49,8 @@ export default function Health() {
       const tr = (p as any)?.stats?.lifescoreTrend || 'flat';
       const st = (p as any)?.stats?.currentStreak ?? (p as any)?.user?.streak_days ?? 0;
       const pr = (p as any)?.userProfile?.profile_json?.preferences || null;
-      setLife(ls); setXp(xpVal); setLevel(lvl); setTrend(tr); setStreak(st); setPrefs(pr);
+      const name = (p as any)?.userProfile?.profile_json?.name || '';
+      setLife(ls); setXp(xpVal); setLevel(lvl); setTrend(tr); setStreak(st); setPrefs(pr); setUserName(name);
     }).catch(() => {});
   }, [t]);
 
@@ -171,11 +173,16 @@ export default function Health() {
   }), [bundle, life, loading, insights, suggested, t, trend, xp, level, streak]);
 
   return (
-    <MajlisLayout
+    <MajlisLayout 
       titleKey="health.title"
       icon={<DallahIcon size={20} color="var(--qic-secondary)" />}
       headerExtras={<span style={{ color: 'var(--qic-muted)' }}>{status}</span>}
     >
+      {userName && (
+        <div style={{ marginBottom: 12, fontSize: 16, color: 'var(--qic-primary)', fontWeight: 500 }}>
+          Welcome back, {userName}! 👋
+        </div>
+      )}
       <div className="grid-modules">
         {modules['offers-strip'] && <React.Fragment key="offers-strip">{modules['offers-strip']}</React.Fragment>}
         {modules['bundle-card'] && <React.Fragment key="bundle-card">{modules['bundle-card']}</React.Fragment>}

@@ -1,150 +1,553 @@
-{
-  "insurance_plans": [
-    {
-      "type": "Car Insurance",
-      "full_name": "Premier Automobile Insurance",
-      "concise_description": "Designed to protect you, your family, and your automobile investment in case of an accident.",
-      "key_features": [
-        "Comprehensive coverage: Insures both liability and possible car damages.",
-        "Third Party Liability (TPL): Basic package covering damages to others; compulsory in Qatar.",
-        "Agency repairs for the first 3 years on new vehicles (extendable).",
-        "Off-road coverage available as add-on for non-paved roads.",
-        "Roadside assistance options.",
-        "No comprehensive cover for cars older than 7 years.",
-        "Covers natural disasters (e.g., floods, earthquakes) in comprehensive plans."
-      ],
-      "costs": {
-        "premium_calculation": "Percentage of the vehicle's value, adjusted for driving experience, accident history, and no-claims bonus.",
-        "policy_excess": "QR 250 per claim (first portion borne by insured).",
-        "payment_options": "Full payment or 12 equal monthly installments.",
-        "discounts": "10% off for online purchases; no-claims bonus for accident-free renewals."
+[
+  {
+    "insurance_type": "Car Insurance",
+    "plans": [
+      {
+        "plan_name": "Third Party Liability (TPL)",
+        "standard_coverages": [
+          {
+            "item": "Third Party Liability",
+            "limit": "Not specified",
+            "description": "Covers property damage or injuries you may cause to others, including damages to other people's cars or property"
+          },
+          {
+            "item": "Passenger Liability",
+            "limit": "Not specified",
+            "description": "Covers injuries you and passengers may suffer in an accident"
+          }
+        ],
+        "optional_add_ons": [],
+        "exclusions": [
+          {
+            "item": "Own Vehicle Damage",
+            "limit": "N/A",
+            "description": "Does not cover damage to your own vehicle"
+          },
+          {
+            "item": "Off-Road Accidents",
+            "limit": "N/A",
+            "description": "Excludes accidents off designated roads unless add-on purchased"
+          },
+          {
+            "item": "Intentional Damage",
+            "limit": "N/A",
+            "description": "Excludes damage caused intentionally by the insured"
+          },
+          {
+            "item": "Driving Under Influence",
+            "limit": "N/A",
+            "description": "No coverage if driving under alcohol or drugs"
+          },
+          {
+            "item": "Unlicensed Driving",
+            "limit": "N/A",
+            "description": "Excludes claims if driver is unlicensed"
+          }
+        ]
       },
-      "other_factors": {
-        "eligibility": "Valid Qatar ID and driver's license required.",
-        "claims_process": "Register via customer portal, call center (8004 742), WhatsApp (56 500 4742), email, or in-person at branches.",
-        "coverage_limits": "Varies by plan; e.g., third-party property damage up to AED 5,000,000 (GCC equivalent).",
-        "add_ons": "GCC coverage, emergency expenses, personal accident benefits."
+      {
+        "plan_name": "Comprehensive",
+        "standard_coverages": [
+          {
+            "item": "Third Party Liability",
+            "limit": "Not specified",
+            "description": "Covers damages to other people's cars or property"
+          },
+          {
+            "item": "Passenger Liability",
+            "limit": "Not specified",
+            "description": "Covers injuries to you and passengers in an accident"
+          },
+          {
+            "item": "Own Damage",
+            "limit": "Not specified",
+            "description": "Covers damages your car sustains in an accident, including from events beyond your control"
+          }
+        ],
+        "optional_add_ons": [
+          {
+            "item": "24/7 Elite Roadside Assistance",
+            "limit": "Not specified",
+            "description": "Assistance if your car breaks down on the road"
+          },
+          {
+            "item": "Personal Accident Benefit",
+            "limit": "Not specified",
+            "description": "Compensation if injured in an accident"
+          },
+          {
+            "item": "Agency Repairs",
+            "limit": "Not specified",
+            "description": "High-quality repairs at your car dealership"
+          },
+          {
+            "item": "Replacement Hire Car",
+            "limit": "Not specified",
+            "description": "Replacement vehicle while your car is in repairs"
+          },
+          {
+            "item": "Riots, Strikes, Storms & Floods",
+            "limit": "Not specified",
+            "description": "Coverage against natural disasters and vandalism"
+          },
+          {
+            "item": "Unidentified Motorist Damage",
+            "limit": "Not specified",
+            "description": "Covers accidents caused by unknown drivers"
+          },
+          {
+            "item": "Off-road 360",
+            "limit": "Not specified",
+            "description": "Covers accidents on all terrain, including sand dunes"
+          },
+          {
+            "item": "GCC Extension",
+            "limit": "Not specified",
+            "description": "Extends coverage to UAE, Kuwait, and Oman"
+          },
+          {
+            "item": "Zero Depreciation Cover",
+            "limit": "Not specified",
+            "description": "Replacement of worn-out parts at no extra cost"
+          }
+        ],
+        "exclusions": [
+          {
+            "item": "Intentional Damage",
+            "limit": "N/A",
+            "description": "Excludes damage caused intentionally by the insured"
+          },
+          {
+            "item": "Driving Under Influence",
+            "limit": "N/A",
+            "description": "No coverage if driving under alcohol or drugs"
+          },
+          {
+            "item": "Unlicensed Driving",
+            "limit": "N/A",
+            "description": "Excludes claims if driver is unlicensed"
+          }
+        ]
       }
-    },
-    {
-      "type": "Motorcycle Insurance",
-      "full_name": "Motorcycle Insurance",
-      "concise_description": "Tailored for busy riders, providing hassle-free protection for motorcycle ownership and use.",
-      "key_features": [
-        "Comprehensive coverage for damages, theft, and liability.",
-        "Agency repairs for the first year, extendable with optional cover.",
-        "Safe riding discounts for renewals.",
-        "No comprehensive cover for motorcycles older than 5 years.",
-        "Total loss if repair costs exceed 70% of insured value."
-      ],
-      "costs": {
-        "premium_calculation": "Percentage of the motorcycle's value; higher for super-fast/exotic models due to repair costs and risk.",
-        "policy_excess": "Higher for high-risk models; fixed amount per non-recoverable claim.",
-        "discounts": "10% for safe riding on renewals."
+    ]
+  },
+  {
+    "insurance_type": "Health Insurance",
+    "plans": [
+      {
+        "plan_name": "Mandatory Visitors' Health Insurance (MVHI)",
+        "standard_coverages": [
+          {
+            "item": "Emergency Medical Assistance",
+            "limit": "QAR 150,000 per policy period",
+            "description": "Covers accident and acute medical emergencies, including in-patient, out-patient, pharmacy, doctor visits, tests, and treatments within Qatar"
+          },
+          {
+            "item": "Compensation within Qatar",
+            "limit": "Not specified",
+            "description": "Provides compensation for covered events and treatments in Qatar"
+          },
+          {
+            "item": "COVID-19 Coverage",
+            "limit": "Hotel quarantine up to QAR 300/day for 10 days; One rapid Antigen Test on day 6",
+            "description": "Covers COVID-19 related quarantine, treatment, and testing if home quarantine is not possible"
+          },
+          {
+            "item": "Emergency Evacuation",
+            "limit": "QAR 35,000 sublimit for ambulance and evacuation",
+            "description": "Covers emergency evacuation and repatriation for medical emergencies"
+          }
+        ],
+        "optional_add_ons": [],
+        "exclusions": [
+          {
+            "item": "Pre-existing Conditions",
+            "limit": "N/A",
+            "description": "Excludes treatment for pre-existing medical conditions"
+          },
+          {
+            "item": "Non-Emergency Treatments",
+            "limit": "N/A",
+            "description": "No coverage for routine check-ups, elective procedures, or chronic conditions"
+          },
+          {
+            "item": "War or Terrorism",
+            "limit": "N/A",
+            "description": "Excludes injuries from war, terrorism, or civil unrest"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "insurance_type": "Personal Accident Insurance",
+    "plans": [
+      {
+        "plan_name": "Standard",
+        "standard_coverages": [
+          {
+            "item": "Injuries",
+            "limit": "Not specified",
+            "description": "Covers broken bones, limb losses, dislocations, or burns from accidents"
+          },
+          {
+            "item": "Physiotherapy",
+            "limit": "Not specified",
+            "description": "Covers assistance for mobility and well-being recovery after accident"
+          },
+          {
+            "item": "Accidental Death",
+            "limit": "Not specified",
+            "description": "Compensation for death due to unexpected occasions or severe injuries in the accident"
+          },
+          {
+            "item": "Permanent Disability",
+            "limit": "Not specified",
+            "description": "Compensation when permanent disability is caused by the accident"
+          },
+          {
+            "item": "Hospitalization",
+            "limit": "Not specified",
+            "description": "Covers treatment and care during hospitalization due to accident"
+          }
+        ],
+        "optional_add_ons": [],
+        "exclusions": [
+          {
+            "item": "Pre-existing Conditions",
+            "limit": "N/A",
+            "description": "No compensation for death or injury arising from pre-existing conditions"
+          },
+          {
+            "item": "Self-Inflicted Injuries",
+            "limit": "N/A",
+            "description": "Excludes intentional self-harm or suicide attempts"
+          },
+          {
+            "item": "Criminal Activities",
+            "limit": "N/A",
+            "description": "No coverage if accident occurs during illegal activities"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "insurance_type": "Home Contents Insurance",
+    "plans": [
+      {
+        "plan_name": "Home All Risks",
+        "standard_coverages": [
+          {
+            "item": "Contents in Your Home",
+            "limit": "Not specified",
+            "description": "Covers loss or damage to contents caused by fire, theft, etc., including furniture, mirrors, valuables like jewelry, pictures, fine art; excludes deeds, bonds, bills of exchange"
+          },
+          {
+            "item": "Alternative Accommodation",
+            "limit": "15% of the total Sum Insured on Contents",
+            "description": "Covers temporary housing if home is uninhabitable due to covered peril"
+          },
+          {
+            "item": "Building Cover for Owners",
+            "limit": "Not specified",
+            "description": "Covers damage to home's walls, roof, or structure for owners"
+          },
+          {
+            "item": "Damage to Rented Items",
+            "limit": "Not specified",
+            "description": "Covers damage to landlord's items"
+          },
+          {
+            "item": "Visitors' Personal Belongings",
+            "limit": "QAR 2,500 in total",
+            "description": "Covers loss or damage to visitors' belongings"
+          },
+          {
+            "item": "Mirrors Breakage",
+            "limit": "Not specified",
+            "description": "Covers broken mirrors (excludes hand mirrors)"
+          },
+          {
+            "item": "Household Workers Items",
+            "limit": "Not specified",
+            "description": "Covers servant's or driver's belongings within specified locations"
+          },
+          {
+            "item": "Broad Disaster Protection",
+            "limit": "Not specified",
+            "description": "Protects against disasters: fire, theft, riot, earthquake, hurricanes, floods"
+          },
+          {
+            "item": "Away-from-Home Valuables",
+            "limit": "Up to 20% of sum insured",
+            "description": "Covers contents while temporarily removed from home"
+          },
+          {
+            "item": "Liability to the Landlord",
+            "limit": "QAR 350,000",
+            "description": "Covers liability to landlord as a private householder"
+          }
+        ],
+        "optional_add_ons": [
+          {
+            "item": "Home Assistance",
+            "limit": "Maximum of 3 emergencies per year per policy",
+            "description": "Emergency repairs for safety or to prevent further damage; not a maintenance contract"
+          },
+          {
+            "item": "Personal Accident Add-on",
+            "limit": "Not specified",
+            "description": "Protects against death or disability; can cover you, family, or household workers"
+          },
+          {
+            "item": "Accidental Damage Add-on",
+            "limit": "Not specified",
+            "description": "Guards items from damage caused by visitors or pets"
+          },
+          {
+            "item": "All Risk Worldwide Add-on",
+            "limit": "Not specified",
+            "description": "Protects items during travel abroad"
+          }
+        ],
+        "exclusions": [
+          {
+            "item": "Wear and Tear",
+            "limit": "N/A",
+            "description": "Excludes normal wear, gradual deterioration"
+          },
+          {
+            "item": "Unoccupied Home",
+            "limit": "N/A",
+            "description": "Limited coverage if home unoccupied for extended periods"
+          },
+          {
+            "item": "Valuables Over Limits",
+            "limit": "N/A",
+            "description": "Excludes valuables exceeding specified sub-limits unless declared"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "insurance_type": "Boat and Yacht Insurance",
+    "plans": [
+      {
+        "plan_name": "Third Party Liability",
+        "standard_coverages": [
+          {
+            "item": "Third Party Liability",
+            "limit": "Not specified",
+            "description": "Covers damages you may accidentally cause to other people's property or injuries caused by your boat"
+          }
+        ],
+        "optional_add_ons": [],
+        "exclusions": [
+          {
+            "item": "Own Boat Damage",
+            "limit": "N/A",
+            "description": "Does not cover damage to your own boat"
+          },
+          {
+            "item": "Speed Exceeding 17 Knots",
+            "limit": "N/A",
+            "description": "Excludes ship's boat with speed over 17 knots unless endorsed"
+          }
+        ]
       },
-      "other_factors": {
-        "eligibility": "Valid Qatar ID and motorcycle license.",
-        "claims_process": "Similar to car insurance; via portal, app, or branches.",
-        "coverage_limits": "Includes fixtures via endorsement; excludes reckless driving.",
-        "add_ons": "Agency repair extension, off-road if applicable."
+      {
+        "plan_name": "Comprehensive",
+        "standard_coverages": [
+          {
+            "item": "Loss or Damage to the Boat",
+            "limit": "Not specified",
+            "description": "Covers against fire, piracy, lightning, theft, accidental damage, events beyond your control"
+          },
+          {
+            "item": "Third Party Liability",
+            "limit": "Not specified",
+            "description": "Covers damages to other people's property"
+          },
+          {
+            "item": "Personal Accident",
+            "limit": "Not specified",
+            "description": "Covers injuries, death, or disability in case of severe events"
+          },
+          {
+            "item": "Personal Effects",
+            "limit": "Not specified",
+            "description": "Guards your personal items on board"
+          },
+          {
+            "item": "Towing and Technical Help",
+            "limit": "Not specified",
+            "description": "Towing to nearest repair place when needed"
+          },
+          {
+            "item": "Transit Issues",
+            "limit": "Not specified",
+            "description": "Covers if your boat was damaged during transport to the anchorage"
+          }
+        ],
+        "optional_add_ons": [
+          {
+            "item": "Water Skiers Liability",
+            "limit": "Not specified",
+            "description": "Covers injury or damage that may occur while towing a skier by the insured watercraft"
+          }
+        ],
+        "exclusions": [
+          {
+            "item": "Wear and Tear",
+            "limit": "N/A",
+            "description": "Excludes gradual deterioration, corrosion"
+          },
+          {
+            "item": "Unseaworthiness",
+            "limit": "N/A",
+            "description": "No coverage if boat not seaworthy"
+          },
+          {
+            "item": "Racing",
+            "limit": "N/A",
+            "description": "Excludes damage during racing unless endorsed"
+          }
+        ]
       }
-    },
-    {
-      "type": "Travel Insurance",
-      "full_name": "Travel Insurance (Travelcare Plus, Fly Europe, Regional, Worldwide Plans)",
-      "concise_description": "Essential coverage for medical emergencies, trip disruptions, and baggage issues, evolving from luxury to necessity.",
-      "key_features": [
-        "Medical expenses, hospitalization, and repatriation.",
-        "Trip cancellation/delay, baggage loss/damage.",
-        "Schengen-compliant plans with min. EUR 30,000 coverage.",
-        "Worldwide options including USA/Canada.",
-        "Covers COVID-19 treatment/quarantine for inbound visitors.",
-        "Emergency evacuation and funeral costs."
-      ],
-      "costs": {
-        "premium_starting_from": {
-          "regional_indian_subcontinent_se_asia_gcc": "QAR 44",
-          "schengen_europe": "QAR 50",
-          "worldwide_excl_usa_canada": "QAR 87",
-          "worldwide_incl_usa_canada": "QAR 126"
-        },
-        "policy_excess": "USD 50 for certain sections (e.g., medical).",
-        "payment_options": "Online via card or app."
-      },
-      "other_factors": {
-        "eligibility": "Qatar residents or visitors; QID/passport required for outbound; inbound for visitors.",
-        "claims_process": "Notify within 48 hours for medical; via app, email, or hotline.",
-        "coverage_limits": "Up to USD 1,000,000 policy limit; EUR 30,000 for Schengen; QR 150,000 for inbound medical.",
-        "add_ons": "Winter sports extension, terrorism/sports equipment cover (excl. Fly Europe)."
+    ]
+  },
+  {
+    "insurance_type": "Business Shield Insurance",
+    "plans": [
+      {
+        "plan_name": "Standard",
+        "standard_coverages": [
+          {
+            "item": "All Risk Property Coverage",
+            "limit": "Not specified",
+            "description": "Protects business assets against damage from fire, theft, natural disasters"
+          },
+          {
+            "item": "Third Party Liability",
+            "limit": "Not specified",
+            "description": "Covers liability for injury or damage to third parties"
+          },
+          {
+            "item": "Business Interruption",
+            "limit": "Not specified",
+            "description": "Covers loss of income due to covered perils"
+          }
+        ],
+        "optional_add_ons": [
+          {
+            "item": "Cyber Liability",
+            "limit": "Not specified",
+            "description": "Covers data breaches and cyber attacks"
+          },
+          {
+            "item": "Professional Indemnity",
+            "limit": "Not specified",
+            "description": "Covers errors in professional services"
+          }
+        ],
+        "exclusions": [
+          {
+            "item": "Intentional Acts",
+            "limit": "N/A",
+            "description": "Excludes damage from intentional or criminal acts"
+          },
+          {
+            "item": "War and Terrorism",
+            "limit": "N/A",
+            "description": "No coverage for war, terrorism unless added"
+          },
+          {
+            "item": "Pollution",
+            "limit": "N/A",
+            "description": "Excludes gradual pollution or environmental damage"
+          }
+        ]
       }
-    },
-    {
-      "type": "Home Insurance",
-      "full_name": "Home Insurance",
-      "concise_description": "Protects your most valuable asset—your home—as a safe haven for family and loved ones.",
-      "key_features": [
-        "Coverage for building, contents, theft, fire, and natural disasters (e.g., earthquake, flood, storm).",
-        "Personal liability and legal expenses.",
-        "Theft cover suspended after 60 days of unoccupancy."
-      ],
-      "costs": {
-        "premium_calculation": "Based on property value, location, and coverage level; no specific figures publicly listed.",
-        "policy_excess": "Standard deductible applies per claim.",
-        "discounts": "Multi-policy bundles available."
-      },
-      "other_factors": {
-        "eligibility": "Qatar residents with property ownership/tenancy; address and QID required.",
-        "claims_process": "Via online portal, app, or branches; requires proof of loss.",
-        "coverage_limits": "Customizable; excludes war, intentional damage.",
-        "add_ons": "Extended unoccupancy cover, valuables endorsement."
+    ]
+  },
+  {
+    "insurance_type": "Golf Insurance",
+    "plans": [
+      {
+        "plan_name": "Standard",
+        "standard_coverages": [
+          {
+            "item": "Personal Liability",
+            "limit": "Not specified",
+            "description": "Covers injury or property damage caused while playing golf"
+          },
+          {
+            "item": "Personal Accident",
+            "limit": "Not specified",
+            "description": "Provides compensation for accidental injury while playing golf, including death and permanent disability"
+          },
+          {
+            "item": "Golf Equipment",
+            "limit": "Not specified",
+            "description": "Covers repair or replacement of lost, stolen, or damaged golf equipment and clothing"
+          },
+          {
+            "item": "Club Subscription",
+            "limit": "Not specified",
+            "description": "Reimburses club fees if a golf accident prevents you from playing golf for over 60 days"
+          },
+          {
+            "item": "Hospital Cover",
+            "limit": "Not specified",
+            "description": "Covers emergency hospitalization costs resulting from a golf-related accident, starting after the first 24 hours"
+          },
+          {
+            "item": "Dental Treatment Cover",
+            "limit": "Not specified",
+            "description": "Covers emergency dental treatment for injuries caused by a direct blow while playing golf"
+          },
+          {
+            "item": "Hire of Golf Equipment",
+            "limit": "Not specified",
+            "description": "Reimburses hire costs for replacement golf equipment if yours is lost during overseas travel"
+          },
+          {
+            "item": "Tournament Entry Fees",
+            "limit": "Not specified",
+            "description": "Reimburses tournament fees if you must cancel due to unexpected illness or injury within 14 days of the event"
+          },
+          {
+            "item": "Hole-in-One",
+            "limit": "Not specified",
+            "description": "Covers celebration expenses if you score a Hole-in-One in an official club competition (for adults over 21 only)"
+          }
+        ],
+        "optional_add_ons": [],
+        "exclusions": [
+          {
+            "item": "Excesses",
+            "limit": "QAR 150 per claim; QAR 500 for GPS/range finders",
+            "description": "Deductible amount for each claim"
+          },
+          {
+            "item": "Professional Golfers",
+            "limit": "N/A",
+            "description": "Excludes professional golfers or those earning from golf"
+          },
+          {
+            "item": "Unattended Equipment",
+            "limit": "N/A",
+            "description": "No coverage for theft of unattended equipment"
+          },
+          {
+            "item": "Age Limits",
+            "limit": "N/A",
+            "description": "Only available to Qatar residents aged between 5 and 70 years old (unless otherwise agreed)"
+          }
+        ]
       }
-    },
-    {
-      "type": "Boat Insurance",
-      "full_name": "Boat & Yacht Insurance",
-      "concise_description": "Personalized service and tailored coverage for pleasure crafts to mega yachts, based on usage.",
-      "key_features": [
-        "Hull damage, theft, liability, and salvage.",
-        "Covers various vessels: yachts, dhows, fishing boats, jet skis.",
-        "Mandatory for registered ships in Qatar.",
-        "Navigation limits customizable."
-      ],
-      "costs": {
-        "premium_calculation": "Based on vessel value, type, usage, and navigation area; no fixed rates listed.",
-        "policy_excess": "Varies by vessel size/risk.",
-        "discounts": "Online purchase incentives."
-      },
-      "other_factors": {
-        "eligibility": "Vessel registration in Qatar; owner details required.",
-        "claims_process": "Specialist marine team; submit proposal online for quote within 24 hours.",
-        "coverage_limits": "Tailored; excludes international unless add-on.",
-        "add_ons": "Extra geographical area cover for overseas travel."
-      }
-    },
-    {
-      "type": "Life & Medical Insurance",
-      "full_name": "QatarCare",
-      "concise_description": "Comprehensive group medical solution, flexible for groups with cost options based on chosen covers.",
-      "key_features": [
-        "Inpatient/outpatient treatment, hospitalization, medications.",
-        "Emergency medical assistance, evacuation, repatriation.",
-        "Inbound visitor cover for emergencies in Qatar.",
-        "COVID-19 treatment/quarantine included.",
-        "No waiting period for visitors."
-      ],
-      "costs": {
-        "premium_calculation": "Flexible based on group size, covers selected, and demographics (e.g., age, smoking status); inbuilt cost flexibilities.",
-        "policy_excess": "Varies; e.g., QR 150,000 limit for inbound medical with insured excess.",
-        "payment_options": "Annual or group billing."
-      },
-      "other_factors": {
-        "eligibility": "Groups/individuals with QID; visitors via passport.",
-        "claims_process": "Notify QLM within 48 hours for inpatient; via app or hotline.",
-        "coverage_limits": "Customizable; up to QR 150,000 for visitors; excludes chronic conditions unless emergency.",
-        "add_ons": "Dental, maternity, or enhanced outpatient."
-      }
-    }
-  ]
-}
-
-
+    ]
+  }
+]

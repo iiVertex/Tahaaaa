@@ -136,11 +136,30 @@ class MockDatabaseService {
   async completeMission(id, missionId, completionData = {}) {
     const item = this.user_missions.find(um => (um.user_id === id || um.session_id === id) && um.mission_id === missionId);
     if (!item) return null;
+    
+    // Get the mission to extract rewards
+    const mission = this.missions.find(m => m.id === missionId);
+    
+    // Use reward data from completionData if provided, otherwise calculate from mission
+    const coinsEarned = completionData.coins_earned !== undefined 
+      ? completionData.coins_earned 
+      : (mission?.coin_reward || (mission?.difficulty === 'easy' ? 10 : mission?.difficulty === 'medium' ? 20 : 30));
+    const xpEarned = completionData.xp_earned !== undefined 
+      ? completionData.xp_earned 
+      : (mission?.xp_reward || 10);
+    const lifescoreChange = completionData.lifescore_change !== undefined 
+      ? completionData.lifescore_change 
+      : (mission?.lifescore_impact || 0);
+    
     Object.assign(item, {
       status: 'completed',
       completed_at: new Date().toISOString(),
       progress: 100,
-      completion_data: completionData
+      coins_earned: coinsEarned,
+      xp_earned: xpEarned,
+      lifescore_change: lifescoreChange,
+      completion_data: completionData,
+      updated_at: new Date().toISOString()
     });
     return item;
   }
@@ -493,14 +512,27 @@ export class DatabaseService {
   }
 
   async completeMission(userId, missionId, completionData = {}) {
+    // Extract reward data from completionData if provided
+    const coinsEarned = completionData.coins_earned;
+    const xpEarned = completionData.xp_earned;
+    const lifescoreChange = completionData.lifescore_change;
+    
+    const updateData = {
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      progress: 100,
+      updated_at: new Date().toISOString(),
+      completion_data: completionData
+    };
+    
+    // Include reward fields if provided
+    if (coinsEarned !== undefined) updateData.coins_earned = coinsEarned;
+    if (xpEarned !== undefined) updateData.xp_earned = xpEarned;
+    if (lifescoreChange !== undefined) updateData.lifescore_change = lifescoreChange;
+    
     const result = await this.query('user_missions', { type: 'update' }, {
       filters: { user_id: userId, mission_id: missionId },
-      data: {
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        progress: 100,
-        completion_data: completionData
-      }
+      data: updateData
     });
     // Return the updated user_mission record
     return result?.[0] || result || null;

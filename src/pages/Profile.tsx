@@ -150,14 +150,15 @@ export default function Profile() {
             ...prefs,
             missionDifficulty: prefs.missionDifficulty || 'easy'
           }, // Keep old preferences for backward compatibility
-          insurance_preferences: insurancePreferences, // New: separate insurance preferences
-          areas_of_interest: areasOfInterest, // New: areas of interest
+          // Ensure insurance_preferences is always an array (never undefined or null)
+          insurance_preferences: Array.isArray(insurancePreferences) ? insurancePreferences : (insurancePreferences ? [insurancePreferences] : []),
+          areas_of_interest: Array.isArray(areasOfInterest) ? areasOfInterest : (areasOfInterest ? [areasOfInterest] : []),
           name,
           age,
           gender,
           nationality,
           budget,
-          vulnerabilities,
+          vulnerabilities: Array.isArray(vulnerabilities) ? vulnerabilities : (vulnerabilities ? [vulnerabilities] : []),
           first_time_buyer: firstTimeBuyer
         },
         nickname: profile?.nickname || 'hero'
@@ -174,11 +175,25 @@ export default function Profile() {
       const savedTime = new Date();
       setLastSaved(savedTime);
       
-      // Immediately invalidate and refetch profile and missions
+      // Force complete cache refresh - use refetchOnMount to ensure fresh data
       await qc.invalidateQueries({ queryKey: ['profile'] });
-      await qc.refetchQueries({ queryKey: ['profile'] });
+      await qc.refetchQueries({ queryKey: ['profile'], refetchType: 'active' });
+      
+      // Also invalidate missions since profile completion affects mission access
       await qc.invalidateQueries({ queryKey: ['missions'] });
-      await qc.refetchQueries({ queryKey: ['missions'] });
+      await qc.refetchQueries({ queryKey: ['missions'], refetchType: 'active' });
+      
+      // In dev mode, log what was saved
+      if ((import.meta as any).env?.DEV) {
+        console.log('[Profile] Saved payload:', {
+          hasName: !!payload.profile_json.name,
+          hasAge: !!payload.profile_json.age,
+          hasGender: !!payload.profile_json.gender,
+          hasNationality: !!payload.profile_json.nationality,
+          insurancePreferences: payload.profile_json.insurance_preferences,
+          insurancePrefsCount: Array.isArray(payload.profile_json.insurance_preferences) ? payload.profile_json.insurance_preferences.length : 0
+        });
+      }
       
       toast.success(t('profile.saved') || 'Profile saved successfully!');
     } catch (e: any) {
@@ -188,12 +203,73 @@ export default function Profile() {
     }
   };
 
-  const mostNeeded: { type: PlanType; reason: string } | null = useMemo(() => {
+  const mostNeeded: { type: PlanType; reason: string; hierarchyLevel: string } | null = useMemo(() => {
     const ints: string[] = [...insurancePreferences, ...areasOfInterest];
-    if (ints.includes('car') || ints.includes('safe_driving')) return { type: 'car', reason: 'Driving interest and safety focus' } as any;
-    if (ints.includes('health') || ints.includes('medical')) return { type: 'medical', reason: 'Health-focused preferences' } as any;
-    if (vulnerabilities.some(v => v.toLowerCase().includes('travel') || v.toLowerCase().includes('visa'))) return { type: 'travel', reason: 'Travel-related risks' } as any;
-    if (budget > 0 && budget < 100) return { type: 'home', reason: 'Budget-conscious protection for essentials' } as any;
+    const vulnerabilitiesLower = vulnerabilities.map(v => v.toLowerCase());
+    
+    // Maslow's Hierarchy: Physiological > Safety > Social > Esteem/Self-actualization
+    // Available types: Car, Health, Home, Travel, Life
+    
+    // 1. Physiological Need: Health/Medical Insurance (highest priority)
+    if (ints.includes('health') || ints.includes('medical') || vulnerabilitiesLower.some(v => v.includes('health') || v.includes('medical'))) {
+      return { 
+        type: 'medical', 
+        reason: 'Physiological Need - Essential for survival and well-being. Health insurance protects your basic life functions and medical emergencies.',
+        hierarchyLevel: 'Physiological'
+      } as any;
+    }
+    
+    // 2. Safety Need: Car or Home Insurance (second priority)
+    if (ints.includes('car') || ints.includes('safe_driving') || vulnerabilitiesLower.some(v => v.includes('car') || v.includes('vehicle') || v.includes('accident'))) {
+      return { 
+        type: 'car', 
+        reason: 'Safety Need - Protects your vehicle, personal safety, and financial security. Essential for daily transportation safety.',
+        hierarchyLevel: 'Safety'
+      } as any;
+    }
+    
+    if (ints.includes('home') || vulnerabilitiesLower.some(v => v.includes('home') || v.includes('property'))) {
+      return { 
+        type: 'home', 
+        reason: 'Safety Need - Protects your home and property. Ensures your living space and belongings are secure.',
+        hierarchyLevel: 'Safety'
+      } as any;
+    }
+    
+    // 3. Social Need: Travel Insurance (third priority)
+    if (ints.includes('travel') || vulnerabilitiesLower.some(v => v.includes('travel') || v.includes('visa') || v.includes('trip'))) {
+      return { 
+        type: 'travel', 
+        reason: 'Social Need - Enables travel, relationships, and belonging. Protects you while exploring and connecting with others.',
+        hierarchyLevel: 'Social'
+      } as any;
+    }
+    
+    // 4. Esteem/Self-actualization: Life Insurance (fourth priority)
+    if (ints.includes('life') || vulnerabilitiesLower.some(v => v.includes('life') || v.includes('family') || v.includes('future'))) {
+      return { 
+        type: 'life', 
+        reason: 'Self-actualization Need - Investment in future security and family protection. Supports long-term goals and legacy planning.',
+        hierarchyLevel: 'Self-actualization'
+      } as any;
+    }
+    
+    // Fallback: If user has preferences but none match hierarchy, prioritize by preferences
+    if (insurancePreferences.length > 0) {
+      const pref = insurancePreferences[0].toLowerCase();
+      if (pref === 'health' || pref === 'medical') {
+        return { type: 'medical', reason: 'Physiological Need - Essential for survival and well-being', hierarchyLevel: 'Physiological' } as any;
+      } else if (pref === 'car') {
+        return { type: 'car', reason: 'Safety Need - Protects vehicle and personal safety', hierarchyLevel: 'Safety' } as any;
+      } else if (pref === 'home') {
+        return { type: 'home', reason: 'Safety Need - Protects home and property', hierarchyLevel: 'Safety' } as any;
+      } else if (pref === 'travel') {
+        return { type: 'travel', reason: 'Social Need - Enables travel and relationships', hierarchyLevel: 'Social' } as any;
+      } else if (pref === 'life') {
+        return { type: 'life', reason: 'Self-actualization Need - Future security and family protection', hierarchyLevel: 'Self-actualization' } as any;
+      }
+    }
+    
     return null;
   }, [insurancePreferences, areasOfInterest, vulnerabilities, budget]);
 
@@ -219,7 +295,7 @@ export default function Profile() {
   }, [name, age, gender, nationality, insurancePreferences]);
 
   // Check if Clerk is available
-  const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  const CLERK_PUBLISHABLE_KEY = (import.meta as any).env?.VITE_CLERK_PUBLISHABLE_KEY;
   const hasClerk = !!CLERK_PUBLISHABLE_KEY;
 
   return (
@@ -283,7 +359,6 @@ export default function Profile() {
             <option value="">{t('profile.select') || 'Select'}</option>
             <option value="male">Male</option>
             <option value="female">Female</option>
-            <option value="other">Other</option>
             <option value="prefer_not_to_say">Prefer not to say</option>
           </select>
         </label>
@@ -420,6 +495,34 @@ export default function Profile() {
         </div>
       </div>
 
+      {/* Your Vulnerabilities Section */}
+      {vulnerabilities.length > 0 && (
+        <div className="qic-card-majlis" style={{ padding: 12, marginTop: 12, display: 'grid', gap: 10, background: '#fff3e0', border: '2px solid #ff9800', borderRadius: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: '#e65100' }}>Your Vulnerabilities</div>
+          <div style={{ fontSize: 12, color: 'var(--qic-muted)', marginBottom: 8 }}>
+            {vulnerabilities.length} {vulnerabilities.length === 1 ? 'vulnerability' : 'vulnerabilities'} identified
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {vulnerabilities.map((v) => (
+              <span
+                key={v}
+                style={{
+                  padding: '8px 14px',
+                  background: '#ff9800',
+                  color: 'white',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  border: '1px solid #f57c00'
+                }}
+              >
+                {v}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="qic-card-majlis" style={{ padding: 12, marginTop: 12, display: 'grid', gap: 10 }}>
         <div style={{ fontWeight: 700 }}>Areas of Interest</div>
         <div style={{ fontSize: 12, color: 'var(--qic-muted)', marginBottom: 8 }}>
@@ -482,7 +585,12 @@ export default function Profile() {
       {mostNeeded && (
         <div className="qic-card" style={{ padding: 12, marginTop: 12 }}>
           <div style={{ fontWeight: 700 }}>{t('profile.mostNeeded') || 'Most needed insurance'}</div>
-          <div style={{ marginTop: 6 }}>{mostNeeded.type} — {mostNeeded.reason}</div>
+          <div style={{ marginTop: 6, fontSize: 14, fontWeight: 600, color: 'var(--qic-primary)' }}>
+            {mostNeeded.type.charAt(0).toUpperCase() + mostNeeded.type.slice(1)} Insurance ({mostNeeded.hierarchyLevel || 'Recommended'})
+          </div>
+          <div style={{ marginTop: 4, fontSize: 13, color: 'var(--qic-muted)', lineHeight: 1.5 }}>
+            {mostNeeded.reason}
+          </div>
           {firstTimeBuyer && mostNeeded.type === 'car' && (
             <div style={{ marginTop: 8, padding: 8, background: '#d4edda', borderRadius: 6, fontSize: 14 }}>
               🎉 Special Offer: Get 3 months FREE insurance as a first-time buyer!
@@ -492,7 +600,7 @@ export default function Profile() {
       )}
 
       {filteredOffers.length > 0 && (
-        <div className="qic-card" style={{ padding: 12, marginTop: 12 }}>
+      <div className="qic-card" style={{ padding: 12, marginTop: 12 }}>
           <div style={{ fontWeight: 700, marginBottom: 12 }}>Exclusive Offers Tailored for You</div>
           <div style={{ display: 'grid', gap: 8 }}>
             {filteredOffers.map((offer, idx) => (
@@ -553,7 +661,6 @@ export default function Profile() {
             <option value="">{t('profile.select') || 'Select'}</option>
             <option value="male">Male</option>
             <option value="female">Female</option>
-            <option value="other">Other</option>
             <option value="prefer_not_to_say">Prefer not to say</option>
           </select>
         </label>
@@ -690,6 +797,34 @@ export default function Profile() {
         </div>
       </div>
 
+      {/* Your Vulnerabilities Section */}
+      {vulnerabilities.length > 0 && (
+        <div className="qic-card-majlis" style={{ padding: 12, marginTop: 12, display: 'grid', gap: 10, background: '#fff3e0', border: '2px solid #ff9800', borderRadius: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: '#e65100' }}>Your Vulnerabilities</div>
+          <div style={{ fontSize: 12, color: 'var(--qic-muted)', marginBottom: 8 }}>
+            {vulnerabilities.length} {vulnerabilities.length === 1 ? 'vulnerability' : 'vulnerabilities'} identified
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {vulnerabilities.map((v) => (
+              <span
+                key={v}
+                style={{
+                  padding: '8px 14px',
+                  background: '#ff9800',
+                  color: 'white',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  border: '1px solid #f57c00'
+                }}
+              >
+                {v}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="qic-card-majlis" style={{ padding: 12, marginTop: 12, display: 'grid', gap: 10 }}>
         <div style={{ fontWeight: 700 }}>Areas of Interest</div>
         <div style={{ fontSize: 12, color: 'var(--qic-muted)', marginBottom: 8 }}>
@@ -752,7 +887,12 @@ export default function Profile() {
       {mostNeeded && (
         <div className="qic-card" style={{ padding: 12, marginTop: 12 }}>
           <div style={{ fontWeight: 700 }}>{t('profile.mostNeeded') || 'Most needed insurance'}</div>
-          <div style={{ marginTop: 6 }}>{mostNeeded.type} — {mostNeeded.reason}</div>
+          <div style={{ marginTop: 6, fontSize: 14, fontWeight: 600, color: 'var(--qic-primary)' }}>
+            {mostNeeded.type.charAt(0).toUpperCase() + mostNeeded.type.slice(1)} Insurance ({mostNeeded.hierarchyLevel || 'Recommended'})
+          </div>
+          <div style={{ marginTop: 4, fontSize: 13, color: 'var(--qic-muted)', lineHeight: 1.5 }}>
+            {mostNeeded.reason}
+          </div>
           {firstTimeBuyer && mostNeeded.type === 'car' && (
             <div style={{ marginTop: 8, padding: 8, background: '#d4edda', borderRadius: 6, fontSize: 14 }}>
               🎉 Special Offer: Get 3 months FREE insurance as a first-time buyer!
@@ -772,7 +912,7 @@ export default function Profile() {
               </div>
             ))}
           </div>
-        </div>
+    </div>
       )}
         </>
       ))}

@@ -13,6 +13,27 @@ router.post('/share', authenticateUser, strictRateLimit, asyncHandler(async (req
   const sessionId = req.headers['x-session-id'];
   const code = `QIC${Math.random().toString(36).slice(2,8).toUpperCase()}`;
   const share_url = `https://qic.life/r/${code}`;
+  
+  // Get context from request body (recent mission completion, challenge type, etc.)
+  const context = req.body || {};
+  let referralMessage = '';
+  let emailSubject = 'Join QIC Life - Exclusive Insurance Rewards!';
+  
+  // Generate context-aware referral message
+  if (context.recent_mission && context.recent_mission.name) {
+    const missionName = context.recent_mission.name;
+    const coins = context.recent_mission.coins || 0;
+    const lifescore = context.recent_mission.lifescore || 0;
+    referralMessage = `I just completed "${missionName}" with ${coins} coins and my LifeScore went up ${lifescore} points! Join QIC Life and beat me 1v1 on missions! Use my code: ${code}`;
+    emailSubject = `I just completed ${missionName} on QIC Life!`;
+  } else if (context.challenge) {
+    referralMessage = `I'll beat you 1v1 on the QIC app missions! Log in to accept challenge. Use my code: ${code}`;
+    emailSubject = 'Challenge: QIC Life Missions 1v1!';
+  } else {
+    // Default generic message
+    referralMessage = `Join QIC Life and get exclusive insurance rewards! Use my code: ${code}`;
+  }
+  
   const payload = { code, shares: 1, clicks: 0, installs: 0, purchases: 0, session_id: sessionId, owner_user_id: req.user.id, created_at: new Date().toISOString() };
   let persisted = false;
   if (typeof db?.query === 'function') {
@@ -22,7 +43,7 @@ router.post('/share', authenticateUser, strictRateLimit, asyncHandler(async (req
     } catch (_) {}
   }
   if (!persisted) referrals.set(code, payload);
-  res.json({ success: true, data: { code, share_url } });
+  res.json({ success: true, data: { code, share_url, referral_message: referralMessage, email_subject: emailSubject } });
 }));
 
 // Track referral link click

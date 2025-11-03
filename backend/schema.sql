@@ -960,6 +960,41 @@ COMMENT ON TABLE user_purchases IS 'Track actual product purchases for multi-pro
 COMMENT ON TABLE user_referrals IS 'Referral tracking for share/click/install funnels';
 
 -- ============================================================================
+-- USER BUNDLES TABLE (for saved bundle estimates)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS user_bundles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  bundle_data JSONB NOT NULL DEFAULT '{}',
+  products JSONB NOT NULL DEFAULT '[]',
+  base_premium_total NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  bundle_discount_percentage NUMERIC(5, 2) NOT NULL DEFAULT 0,
+  coins_discount_percentage NUMERIC(5, 2) NOT NULL DEFAULT 0,
+  total_discount_percentage NUMERIC(5, 2) NOT NULL DEFAULT 0,
+  bundle_savings_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  coins_savings_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  total_savings_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  final_price_after_discount NUMERIC(10, 2) NOT NULL DEFAULT 0,
+  coins_deducted INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_bundles_user_id ON user_bundles(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_bundles_created_at ON user_bundles(created_at DESC);
+
+ALTER TABLE user_bundles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own bundles" ON user_bundles
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own bundles" ON user_bundles
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+COMMENT ON TABLE user_bundles IS 'User saved bundle estimates with coins deduction tracking';
+
+-- ============================================================================
 -- SCHEMA COMPLETION SUMMARY
 -- ============================================================================
 

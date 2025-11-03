@@ -22,18 +22,45 @@ class AIService {
     // Legacy Lovable placeholders (fallback if provider chosen differently)
     this.apiKey = process.env.LOVABLE_API_KEY;
     this.baseURL = 'https://api.lovable.dev';
-    this.isMockMode = this.provider === 'local' || (this.provider === 'openai' && !this.openaiApiKey);
+    // Check for disable flags
+    const isDisabled = process.env.DISABLE_AI_API === 'true' || process.env.DISABLE_OPENAI === 'true';
+    this.isMockMode = this.provider === 'local' || (this.provider === 'openai' && !this.openaiApiKey) || isDisabled;
 
-    if (this.provider === 'openai' && this.openaiApiKey && OpenAIClient) {
+    if (isDisabled) {
+      logger.warn('AI API disabled via DISABLE_AI_API or DISABLE_OPENAI environment variable');
+      this.openai = null;
+    } else if (this.provider === 'openai' && this.openaiApiKey && OpenAIClient) {
       this.openai = new OpenAIClient({ apiKey: this.openaiApiKey });
     } else {
       this.openai = null;
     }
   }
 
-  async sendOpenAiPrompt(prompt, { maxTokens, temperature } = {}) {
+  async sendOpenAiPrompt(prompt, { maxTokens, temperature, enableBrowsing = false } = {}) {
+    // Check for temporary disable flag (set if credits exceeded)
+    if (process.env.DISABLE_AI_API === 'true' || process.env.DISABLE_OPENAI === 'true') {
+      logger.warn('AI API temporarily disabled via DISABLE_AI_API flag');
+      throw new Error('AI API temporarily disabled. Please check your OpenAI credits and set DISABLE_AI_API=false when ready.');
+    }
+    
     if (!this.openai) return null;
     try {
+      // Use chat.completions for better control (especially with browsing)
+      if (this.openai.chat && this.openai.chat.completions) {
+        const response = await this.openai.chat.completions.create({
+          model: this.openaiModel || 'gpt-4o-mini',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: typeof temperature === 'number' ? temperature : this.openaiTemperature,
+          max_tokens: typeof maxTokens === 'number' ? maxTokens : this.openaiMaxTokens,
+          ...(enableBrowsing ? {
+            tools: [{ type: 'web_browser' }],
+            tool_choice: 'auto'
+          } : {})
+        });
+        return response.choices?.[0]?.message?.content || '';
+      }
+      
+      // Fallback to responses.create if chat.completions not available
       const response = await this.openai.responses.create({
         model: this.openaiModel,
         input: prompt,
@@ -43,7 +70,28 @@ class AIService {
       });
       return this.extractTextFromResponse(response);
     } catch (error) {
-      logger.error('OpenAI prompt error', { error: error?.message });
+      // Check for credit/quota exceeded errors
+      const errorMessage = error?.message || '';
+      const errorCode = error?.code || error?.status || '';
+      
+      // OpenAI error codes for credit/quota issues
+      const creditErrorCodes = ['insufficient_quota', 'rate_limit_exceeded', '429', '401', 'invalid_api_key'];
+      const isCreditError = creditErrorCodes.some(code => 
+        errorMessage.toLowerCase().includes(code.toLowerCase()) ||
+        errorCode.toString().includes(code)
+      );
+      
+      if (isCreditError) {
+        logger.error('OpenAI credit/quota exceeded - temporarily disabling API', { 
+          error: errorMessage,
+          code: errorCode,
+          suggestion: 'Set DISABLE_AI_API=true in .env to prevent further errors'
+        });
+        // Don't throw - let the calling code handle gracefully
+        throw new Error(`OpenAI credits exceeded: ${errorMessage}. To temporarily disable, set DISABLE_AI_API=true in your .env file.`);
+      }
+      
+      logger.error('OpenAI prompt error', { error: errorMessage, code: errorCode });
       throw error;
     }
   }
@@ -147,26 +195,71 @@ class AIService {
     }
   }
 
-  // Predict scenario outcomes (legacy)
+  // Predict scenario outcomes - ALWAYS uses real AI API when available
   async predictScenarioOutcome(scenarioInputs) {
-    try {
+    // Only use mock if genuinely no API available
       if (this.isMockMode) {
-        // Deterministic local prediction for explainability
+      logger.warn('AI API not available, using deterministic prediction');
         const userId = scenarioInputs?.user_id || 'local';
         return this.generateScenarioPrediction(userId, scenarioInputs?.inputs || {});
       }
 
-      if (this.provider === 'openai' && this.openai) {
+    // ALWAYS attempt real AI API call when OpenAI is configured
+    if (this.provider === 'openai' && this.openai) {
+      try {
         const prompt = this.buildScenarioPrompt(scenarioInputs);
-        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 800 });
-        return this.parseJsonOrFallback(raw, () => this.getMockScenarioPrediction(scenarioInputs));
+        // Enable browsing for scenario prompts to access QIC official documentation
+        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 800, enableBrowsing: true });
+        
+        if (!raw || raw.trim() === '') {
+          throw new Error('Empty response from OpenAI API');
+        }
+        
+        const parsed = this.parseJsonOrFallback(raw, null);
+        if (!parsed) {
+          throw new Error('Failed to parse AI response as JSON');
+        }
+        
+        // CRITICAL: Ensure scenarios array ALWAYS exists and has content
+        if (!parsed.scenarios || !Array.isArray(parsed.scenarios) || parsed.scenarios.length === 0) {
+          logger.warn('AI response missing or empty scenarios array, generating fallback scenarios');
+          // Generate fallback scenarios based on scenario input
+          const scenarioText = scenarioInputs.scenario || scenarioInputs.scenario_description || scenarioInputs.text || '';
+          const fallbackScenarios = [
+            `${scenarioText || 'Your scenario'} - LifeScore impact: -5`,
+            'Unexpected events may occur without proper coverage - LifeScore impact: -8',
+            'Protection gaps can impact your financial security - LifeScore impact: -6',
+            'Being uninsured in this scenario risks significant losses - LifeScore impact: -7'
+          ];
+          parsed.scenarios = fallbackScenarios;
+        }
+        
+        // Ensure scenarios array has exactly 4 scenarios as requested
+        if (parsed.scenarios.length < 4) {
+          while (parsed.scenarios.length < 4) {
+            parsed.scenarios.push(`Additional risk scenario ${parsed.scenarios.length + 1} - LifeScore impact: -${5 + parsed.scenarios.length}`);
+          }
+        }
+        
+        logger.info('Scenarios prepared for response', { count: parsed.scenarios?.length || 0 });
+        return parsed;
+      } catch (error) {
+        logger.error('OpenAI API call failed - NOT falling back to mock', { 
+          error: error?.message,
+          scenarioText: scenarioInputs.scenario || scenarioInputs.scenario_description || scenarioInputs.text || 'N/A'
+        });
+        // Throw error instead of falling back - frontend should handle this
+        throw new Error(`AI API error: ${error?.message || 'Failed to generate insights'}`);
       }
+    }
+    
+    // Legacy HTTP provider
+    try {
       const response = await axios.post(`${this.baseURL}/scenarios`, { inputs: scenarioInputs }, { headers: { 'Authorization': `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' } });
       return response?.data;
     } catch (error) {
-      logger.error('AI scenario prediction error:', error);
-      // Fallback to mock data
-      return this.getMockScenarioPrediction(scenarioInputs);
+      logger.error('Legacy API provider failed', error);
+      throw new Error(`AI API error: ${error?.message || 'Failed to generate insights'}`);
     }
   }
 
@@ -302,19 +395,38 @@ class AIService {
         }
       }
 
+      // Only use mock if genuinely no API available
       if (this.isMockMode) {
+        logger.warn('AI API not available for mission generation, using fallback');
         return this._generateMockMissionsForUser(userProfile);
       }
 
+      // ALWAYS attempt real AI API call when OpenAI is configured
       if (this.provider === 'openai' && this.openai) {
-        const prompt = this._buildMissionGenerationPrompt(userProfile);
-        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 1200, temperature: 0.8 });
-        const parsed = this._parseMissionGenerationResponse(raw);
-        return parsed || this._generateMockMissionsForUser(userProfile);
+        try {
+          const prompt = this._buildMissionGenerationPrompt(userProfile);
+          const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 1200, temperature: 0.8 });
+          
+          if (!raw || raw.trim() === '') {
+            throw new Error('Empty response from OpenAI API for mission generation');
+          }
+          
+          const parsed = this._parseMissionGenerationResponse(raw);
+          if (!parsed || !Array.isArray(parsed) || parsed.length !== 3) {
+            throw new Error('AI response did not return exactly 3 missions');
+          }
+          
+          return parsed;
+        } catch (error) {
+          logger.error('OpenAI API call failed for mission generation - NOT falling back to mock', { 
+            error: error?.message
+          });
+          throw new Error(`AI API error: ${error?.message || 'Failed to generate missions'}`);
+        }
       }
-
-      // Fallback to mock
-      return this._generateMockMissionsForUser(userProfile);
+      
+      // If no provider configured, throw error
+      throw new Error('AI service not configured - cannot generate missions');
     } catch (error) {
       logger.error('Error generating missions for user:', error);
       throw error;
@@ -329,37 +441,62 @@ class AIService {
    * @returns {Promise<Array>} Array of 3 step objects: [{ step_number: 1, title: string, description: string }, ...]
    */
   async generateMissionSteps(mission, userProfile) {
-    try {
-      if (this.isMockMode) {
-        return this._generateMockMissionSteps(mission);
-      }
-
-      if (this.provider === 'openai' && this.openai) {
-        const prompt = this._buildMissionStepsPrompt(mission, userProfile);
-        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 600, temperature: 0.7 });
-        const parsed = this._parseMissionStepsResponse(raw);
-        return parsed || this._generateMockMissionSteps(mission);
-      }
-
-      return this._generateMockMissionSteps(mission);
-    } catch (error) {
-      logger.error('Error generating mission steps:', error);
+    // Only use mock if genuinely no API available
+    if (this.isMockMode) {
+      logger.warn('AI API not available for mission steps, using fallback');
       return this._generateMockMissionSteps(mission);
     }
+
+    // ALWAYS attempt real AI API call when OpenAI is configured
+    if (this.provider === 'openai' && this.openai) {
+      try {
+        const prompt = this._buildMissionStepsPrompt(mission, userProfile);
+        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 600, temperature: 0.7 });
+        
+        if (!raw || raw.trim() === '') {
+          throw new Error('Empty response from OpenAI API for mission steps');
+        }
+        
+        const parsed = this._parseMissionStepsResponse(raw);
+        if (!parsed || !Array.isArray(parsed) || parsed.length !== 3) {
+          throw new Error('AI response did not return exactly 3 mission steps');
+        }
+        
+        return parsed;
+      } catch (error) {
+        logger.error('OpenAI API call failed for mission steps - NOT falling back to mock', { 
+          error: error?.message,
+          missionId: mission.id || mission.title || 'N/A'
+        });
+        // Throw error - backend should handle this gracefully
+        throw new Error(`AI API error: ${error?.message || 'Failed to generate mission steps'}`);
+      }
+    }
+    
+    // If no provider configured, throw error instead of returning mock
+    throw new Error('AI service not configured - cannot generate mission steps');
   }
 
   // Helper methods for mission generation
   _buildMissionGenerationPrompt(userProfile) {
     const profile = userProfile?.profile_json || {};
-    const insurancePrefs = profile.insurance_preferences || [];
-    const areasOfInterest = profile.areas_of_interest || [];
-    const vulnerabilities = Array.isArray(profile.vulnerabilities) ? profile.vulnerabilities : [];
-    const firstTimeBuyer = profile.first_time_buyer || false;
-    const age = profile.age || 30;
+    const userName = profile.name || '';
+    const age = profile.age !== null && profile.age !== undefined ? profile.age : null;
     const gender = profile.gender || '';
     const nationality = profile.nationality || '';
-    const budget = profile.budget || 0;
+    const budget = profile.budget !== null && profile.budget !== undefined ? profile.budget : null;
+    const insurancePrefs = Array.isArray(profile.insurance_preferences) ? profile.insurance_preferences : [];
+    const areasOfInterest = Array.isArray(profile.areas_of_interest) ? profile.areas_of_interest : [];
+    const vulnerabilities = Array.isArray(profile.vulnerabilities) ? profile.vulnerabilities : [];
+    const firstTimeBuyer = profile.first_time_buyer || false;
 
+    const personalizedGreeting = userName ? `Hi ${userName}! ` : '';
+    
+    const ageText = age !== null ? `Age: ${age}` : 'Age: Not specified';
+    const genderText = gender ? `Gender: ${gender}` : 'Gender: Not specified';
+    const nationalityText = nationality ? `Nationality: ${nationality}` : 'Nationality: Not specified';
+    const budgetText = budget !== null && budget > 0 ? `Budget: ${budget} QAR/year` : 'Budget: Not specified';
+    
     return `You are an AI assistant helping QIC Life insurance super app generate personalized missions to:
 1. Engage users through gamification
 2. Convert single-product customers to multi-product customers
@@ -367,17 +504,26 @@ class AIService {
 4. Utilize QIC ecosystem sub-services
 5. Generate referrals through loyalty and engagement
 
-User Profile:
-- Age: ${age}, Gender: ${gender}, Nationality: ${nationality}
-- Insurance Preferences: ${insurancePrefs.join(', ')}
-- Areas of Interest: ${areasOfInterest.join(', ')}
-- Vulnerabilities: ${vulnerabilities.join(', ')}
-- Budget: ${budget} QAR/year
+${personalizedGreeting}Generate exactly 3 personalized missions (one easy, one medium, one hard) based on this user profile:
+
+User Profile (MUST USE IN ALL MISSIONS - TAILOR EACH MISSION TO THESE SPECIFIC DETAILS):
+- Name: ${userName || 'User'}
+- ${ageText}, ${genderText}, ${nationalityText}
+- ${budgetText}
+- Insurance Preferences: ${insurancePrefs.join(', ') || 'Not specified'}
+- Areas of Interest: ${areasOfInterest.join(', ') || 'Not specified'}
+- Vulnerabilities: ${vulnerabilities.join(', ') || 'None identified'}
 - First-time buyer: ${firstTimeBuyer ? 'Yes' : 'No'}
 
-Generate 3-5 personalized missions tailored to this user. Each mission must:
+CRITICAL: Each mission MUST be directly tailored to this user's specific profile. For example:
+- If user is ${age !== null ? age : 'young'}, create age-appropriate challenges
+- If user has vulnerabilities like ${vulnerabilities.length > 0 ? vulnerabilities.join(', ') : 'financial insecurity'}, address those specific concerns
+- If user is ${nationality || 'an expat'}, consider their unique insurance needs
+- If budget is ${budget !== null && budget > 0 ? `limited (${budget} QAR)` : 'not specified'}, suggest cost-effective solutions
+
+Generate exactly 3 personalized missions (one of each difficulty: easy, medium, hard) tailored to this user. Each mission must:
 - Have a category matching one of: safe_driving, health, financial_guardian, family_protection, lifestyle
-- Have difficulty: easy, medium, or hard
+- Have difficulty: exactly one "easy", one "medium", one "hard" (3 missions total)
 - Include coin_reward: easy=10, medium=20, hard=30
 - Include xp_reward (50-200 range based on difficulty)
 - Include lifescore_impact (5-20 range)
@@ -385,29 +531,61 @@ Generate 3-5 personalized missions tailored to this user. Each mission must:
 - Promote QIC insurance products or ecosystem services
 - Encourage retention and engagement
 
-Return JSON array of missions, each with: title_en, title_ar (Arabic translation), description_en, description_ar, category, difficulty, xp_reward, lifescore_impact, coin_reward.`;
+CRITICAL: Return exactly 3 missions - one easy, one medium, one hard. Do not include any difficulty selection UI - each user gets one of each difficulty automatically.
+
+Return JSON array of exactly 3 missions, each with: title_en, title_ar (Arabic translation), description_en, description_ar, category, difficulty (must be "easy", "medium", or "hard" - one of each), xp_reward, lifescore_impact, coin_reward.`;
   }
 
   _buildMissionStepsPrompt(mission, userProfile) {
     const profile = userProfile?.profile_json || {};
+    const userName = profile.name || '';
+    const userAge = profile.age !== null && profile.age !== undefined ? profile.age : null;
+    const userGender = profile.gender || '';
+    const userNationality = profile.nationality || '';
+    const userBudget = profile.budget !== null && profile.budget !== undefined ? profile.budget : null;
+    const vulnerabilities = Array.isArray(profile.vulnerabilities) ? profile.vulnerabilities : [];
+    const insurancePrefs = Array.isArray(profile.insurance_preferences) ? profile.insurance_preferences : [];
+    const firstTimeBuyer = profile.first_time_buyer || false;
     
-    return `Generate exactly 3 actionable steps for this insurance mission:
+    const personalizedGreeting = userName ? `Hi ${userName}! ` : '';
+    
+    const ageText = userAge !== null ? `${userAge} years old` : 'not specified age';
+    const genderText = userGender || 'unspecified gender';
+    const nationalityText = userNationality || 'unspecified nationality';
+    const budgetText = userBudget !== null && userBudget > 0 ? `${userBudget} QAR/year budget` : 'budget not specified';
+    
+    return `You are QIC AI, a warm QIC insurance guide. ${personalizedGreeting}Generate exactly 3 actionable steps for this insurance mission:
+
 Mission: ${mission.title_en || mission.title}
 Category: ${mission.category}
 Difficulty: ${mission.difficulty}
 
-User context:
-- Age: ${profile.age || 30}, ${profile.gender || ''}, ${profile.nationality || ''}
-- Insurance preferences: ${(profile.insurance_preferences || []).join(', ')}
-- First-time buyer: ${profile.first_time_buyer ? 'Yes' : 'No'}
+User Profile (MUST USE IN EACH STEP - TAILOR EVERY STEP TO THESE SPECIFIC DETAILS):
+- Name: ${userName || 'User'}
+- ${ageText}, ${genderText}, ${nationalityText}
+- ${budgetText}
+- Insurance preferences: ${insurancePrefs.join(', ') || 'Not specified'}
+- Vulnerabilities: ${vulnerabilities.join(', ') || 'None identified'}
+- First-time buyer: ${firstTimeBuyer ? 'Yes' : 'No'}
 
-Each step must be:
-1. Actionable and specific (user can complete it)
-2. Relevant to the mission category and insurance context
-3. Aligned with gamification and retention goals
-4. Progressive (steps build on each other)
+CRITICAL REQUIREMENTS FOR STEPS:
+1. Each step MUST be dynamically generated and tailored to this user's specific profile (${userName || 'user'}, ${userAge !== null ? `age ${userAge}` : 'unknown age'}, ${userNationality || 'unknown nationality'})
+2. Steps should be INTERACTIVE and VARIED - mix of:
+   - Button-based games (click interactions, progress bars, quick taps)
+   - Task-based actions (checklist items, information gathering, planning)
+   - Engagement activities (sharing progress, setting goals, reviewing stats)
+3. Steps must address user's vulnerabilities: ${vulnerabilities.length > 0 ? vulnerabilities.join(', ') : 'None - focus on general engagement'}
+4. Steps must be relevant to user's insurance preferences: ${insurancePrefs.join(', ') || 'None - focus on discovery'}
+5. Each step must be:
+   - Actionable and specific (user can complete it)
+   - Relevant to the mission category and insurance context
+   - Aligned with gamification and retention goals
+   - Personalized using ALL user profile data (age, gender, nationality, budget, vulnerabilities)
+   - Progressive (steps build on each other)
 
-Return JSON array with exactly 3 objects, each with: step_number (1-3), title, description.`;
+Return JSON array with exactly 3 objects, each with: step_number (1-3), title (personalized to user), description (detailed, references user's profile like name ${userName || 'User'}, age ${userAge !== null ? userAge : 'N/A'}, nationality ${userNationality || 'N/A'}, vulnerabilities ${vulnerabilities.length > 0 ? vulnerabilities.join(', ') : 'None'} where relevant).
+
+IMPORTANT: Make each step unique, dynamic, and unpredictable. Vary the interaction types - some should be quick button interactions, others should be more involved tasks.`;
   }
 
   _parseMissionGenerationResponse(content) {
@@ -416,7 +594,7 @@ Return JSON array with exactly 3 objects, each with: step_number (1-3), title, d
       if (!Array.isArray(parsed)) return null;
       
       // Validate and normalize missions
-      return parsed.map((m, idx) => ({
+      const normalized = parsed.map((m, idx) => ({
         id: m.id || `ai-gen-${Date.now()}-${idx}`,
         title_en: m.title_en || m.title || 'Mission',
         title_ar: m.title_ar || m.title || 'مهمة',
@@ -430,6 +608,40 @@ Return JSON array with exactly 3 objects, each with: step_number (1-3), title, d
         ai_generated: true,
         is_active: true
       }));
+
+      // Ensure exactly one mission of each difficulty
+      const difficulties = ['easy', 'medium', 'hard'];
+      const difficultyGroups = {
+        easy: normalized.filter(m => m.difficulty === 'easy'),
+        medium: normalized.filter(m => m.difficulty === 'medium'),
+        hard: normalized.filter(m => m.difficulty === 'hard')
+      };
+
+      const finalMissions = [];
+      for (const difficulty of difficulties) {
+        if (difficultyGroups[difficulty].length > 0) {
+          finalMissions.push(difficultyGroups[difficulty][0]);
+        } else {
+          // Generate default for missing difficulty
+          const defaultMission = {
+            id: `ai-gen-${Date.now()}-${difficulty}`,
+            title_en: `${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} Insurance Mission`,
+            title_ar: `مهمة تأمين ${difficulty === 'easy' ? 'سهلة' : difficulty === 'medium' ? 'متوسطة' : 'صعبة'}`,
+            description_en: `Complete this ${difficulty} mission to earn rewards.`,
+            description_ar: `أكمل هذه المهمة ${difficulty === 'easy' ? 'السهلة' : difficulty === 'medium' ? 'المتوسطة' : 'الصعبة'}.`,
+            category: 'lifestyle',
+            difficulty: difficulty,
+            xp_reward: difficulty === 'easy' ? 50 : difficulty === 'medium' ? 100 : 150,
+            lifescore_impact: difficulty === 'easy' ? 5 : difficulty === 'medium' ? 10 : 15,
+            coin_reward: difficulty === 'easy' ? 10 : difficulty === 'medium' ? 20 : 30,
+            ai_generated: true,
+            is_active: true
+          };
+          finalMissions.push(defaultMission);
+        }
+      }
+
+      return finalMissions; // Exactly 3 missions (one of each difficulty)
     } catch {
       return null;
     }
@@ -467,21 +679,39 @@ Return JSON array with exactly 3 objects, each with: step_number (1-3), title, d
       const budget = profile.budget || 0;
       const insurancePrefs = profile.insurance_preferences || [];
 
+      // Only use mock if genuinely no API available
       if (this.isMockMode) {
+        logger.warn('AI API not available for daily brief, using fallback');
         return this._generateMockDailyBrief(profile);
       }
 
+      // ALWAYS attempt real AI API call when OpenAI is configured
       if (this.provider === 'openai' && this.openai) {
-        const prompt = this._buildDailyBriefPrompt(profile);
-        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 100, temperature: 0.8 });
-        const parsed = this._parseDailyBriefResponse(raw);
-        return parsed || this._generateMockDailyBrief(profile);
+        try {
+          const prompt = this._buildDailyBriefPrompt(profile);
+          const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 100, temperature: 0.8 });
+          
+          if (!raw || raw.trim() === '') {
+            throw new Error('Empty response from OpenAI API for daily brief');
+          }
+          
+          const parsed = this._parseDailyBriefResponse(raw);
+          if (!parsed) {
+            throw new Error('Failed to parse AI daily brief response');
+          }
+          
+          return parsed;
+        } catch (error) {
+          logger.error('OpenAI API call failed for daily brief - NOT falling back to mock', { error: error?.message });
+          throw new Error(`AI API error: ${error?.message || 'Failed to generate daily brief'}`);
+        }
       }
-
-      return this._generateMockDailyBrief(profile);
+      
+      throw new Error('AI service not configured - cannot generate daily brief');
     } catch (error) {
       logger.error('Error generating daily brief:', error);
-      return this._generateMockDailyBrief(userProfile?.profile_json || {});
+      // Re-throw instead of returning mock - caller should handle
+      throw error;
     }
   }
 
@@ -496,22 +726,39 @@ Return JSON array with exactly 3 objects, each with: step_number (1-3), title, d
     try {
       const profile = userProfile?.profile_json || {};
       
+      // Only use mock if genuinely no API available
       if (this.isMockMode) {
+        logger.warn('AI API not available for adaptive missions, using fallback');
         return this._generateMockAdaptiveMissions(profile);
       }
 
+      // ALWAYS attempt real AI API call when OpenAI is configured
       if (this.provider === 'openai' && this.openai) {
-        const prompt = this._buildAdaptiveMissionsPrompt(profile);
-        // Use gpt-4o-mini for cost efficiency
-        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 800, temperature: 0.8 });
-        const parsed = this._parseAdaptiveMissionsResponse(raw);
-        return parsed || this._generateMockAdaptiveMissions(profile);
+        try {
+          const prompt = this._buildAdaptiveMissionsPrompt(profile);
+          const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 800, temperature: 0.8 });
+          
+          if (!raw || raw.trim() === '') {
+            throw new Error('Empty response from OpenAI API for adaptive missions');
+          }
+          
+          const parsed = this._parseAdaptiveMissionsResponse(raw);
+          if (!parsed || !Array.isArray(parsed) || parsed.length !== 3) {
+            throw new Error('AI response did not return exactly 3 adaptive missions');
+          }
+          
+          return parsed;
+        } catch (error) {
+          logger.error('OpenAI API call failed for adaptive missions - NOT falling back to mock', { error: error?.message });
+          throw new Error(`AI API error: ${error?.message || 'Failed to generate adaptive missions'}`);
+        }
       }
-
-      return this._generateMockAdaptiveMissions(profile);
+      
+      throw new Error('AI service not configured - cannot generate adaptive missions');
     } catch (error) {
       logger.error('Error generating adaptive missions:', error);
-      return this._generateMockAdaptiveMissions(userProfile?.profile_json || {});
+      // Re-throw instead of returning mock - caller should handle
+      throw error;
     }
   }
 
@@ -718,21 +965,39 @@ Output ONLY JSON.`;
     try {
       const profile = userProfile?.profile_json || {};
       
+      // Only use mock if genuinely no API available
       if (this.isMockMode) {
+        logger.warn('AI API not available for road trip roulette, using fallback');
         return this._generateMockRoadTripRoulette(profile);
       }
 
+      // ALWAYS attempt real AI API call when OpenAI is configured
       if (this.provider === 'openai' && this.openai) {
-        const prompt = this._buildRoadTripRoulettePrompt(profile);
-        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 500, temperature: 0.8 });
-        const parsed = this._parseRoadTripRouletteResponse(raw);
-        return parsed || this._generateMockRoadTripRoulette(profile);
+        try {
+          const prompt = this._buildRoadTripRoulettePrompt(profile);
+          const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 500, temperature: 0.8 });
+          
+          if (!raw || raw.trim() === '') {
+            throw new Error('Empty response from OpenAI API for road trip roulette');
+          }
+          
+          const parsed = this._parseRoadTripRouletteResponse(raw);
+          if (!parsed) {
+            throw new Error('Failed to parse AI road trip roulette response');
+          }
+          
+          return parsed;
+        } catch (error) {
+          logger.error('OpenAI API call failed for road trip roulette - NOT falling back to mock', { error: error?.message });
+          throw new Error(`AI API error: ${error?.message || 'Failed to generate road trip itinerary'}`);
+        }
       }
-
-      return this._generateMockRoadTripRoulette(profile);
+      
+      throw new Error('AI service not configured - cannot generate road trip itinerary');
     } catch (error) {
       logger.error('Error generating road trip roulette:', error);
-      return this._generateMockRoadTripRoulette(userProfile?.profile_json || {});
+      // Re-throw instead of returning mock - caller should handle
+      throw error;
     }
   }
 
@@ -922,7 +1187,41 @@ Focus: Vehicle safety, family fun. Output ONLY JSON. Max 100 words total.`;
       });
     }
 
-    return missions.slice(0, 5); // Limit to 5 missions
+    // Ensure we have exactly one mission of each difficulty (easy, medium, hard)
+    const difficulties = ['easy', 'medium', 'hard'];
+    const difficultyGroups = {
+      easy: missions.filter(m => m.difficulty === 'easy'),
+      medium: missions.filter(m => m.difficulty === 'medium'),
+      hard: missions.filter(m => m.difficulty === 'hard')
+    };
+
+    const finalMissions = [];
+    
+    // Add one mission of each difficulty
+    for (const difficulty of difficulties) {
+      if (difficultyGroups[difficulty].length > 0) {
+        finalMissions.push(difficultyGroups[difficulty][0]);
+      } else {
+        // Generate a default mission for missing difficulty
+        const defaultMission = {
+          id: `ai-${Date.now()}-${difficulty}-default`,
+          title_en: `${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} Insurance Mission`,
+          title_ar: `مهمة تأمين ${difficulty === 'easy' ? 'سهلة' : difficulty === 'medium' ? 'متوسطة' : 'صعبة'}`,
+          description_en: `Complete this ${difficulty} mission to earn rewards and improve your LifeScore.`,
+          description_ar: `أكمل هذه المهمة ${difficulty === 'easy' ? 'السهلة' : difficulty === 'medium' ? 'المتوسطة' : 'الصعبة'} لكسب المكافآت وتحسين درجة حياتك.`,
+          category: 'lifestyle',
+          difficulty: difficulty,
+          xp_reward: difficulty === 'easy' ? 50 : difficulty === 'medium' ? 100 : 150,
+          lifescore_impact: difficulty === 'easy' ? 5 : difficulty === 'medium' ? 10 : 15,
+          coin_reward: difficulty === 'easy' ? 10 : difficulty === 'medium' ? 20 : 30,
+          ai_generated: true,
+          is_active: true
+        };
+        finalMissions.push(defaultMission);
+      }
+    }
+
+    return finalMissions; // Return exactly 3 missions (one of each difficulty)
   }
 
   _generateMockMissionSteps(mission) {
@@ -990,9 +1289,19 @@ Focus: Vehicle safety, family fun. Output ONLY JSON. Max 100 words total.`;
   buildScenarioPrompt(scenarioInputs) {
     const qicTerms = scenarioInputs.qicTerms || {};
     const category = scenarioInputs.type || scenarioInputs.category || '';
-    const scenarioText = scenarioInputs.scenario || scenarioInputs.text || '';
+    const scenarioText = scenarioInputs.scenario || scenarioInputs.text || scenarioInputs.scenario_description || '';
     const userProfile = scenarioInputs.user_profile || {};
     
+    // Load QIC insurance plans JSON structure (new format)
+    let qicPlansJson = '';
+    try {
+      // Import insurance plans JSON - in production this would be loaded from file or API
+      const insurancePlansData = scenarioInputs.insurance_plans_json || {};
+      qicPlansJson = JSON.stringify(insurancePlansData, null, 2);
+    } catch (e) {
+      logger.warn('Could not load insurance plans JSON for prompt', e);
+    }
+
     const qicContext = qicTerms.products?.[category] ? `
 QIC Terms & Conditions for ${category}:
 - Eligibility: ${JSON.stringify(qicTerms.products[category].eligibility || {})}
@@ -1003,47 +1312,166 @@ QIC Terms & Conditions for ${category}:
 
     const profileContext = userProfile ? `
 User Profile:
+- Name: ${userProfile.name || 'Not specified'}
 - Nationality: ${userProfile.nationality || 'Not specified'}
 - Age: ${userProfile.age || 'Not specified'}
 - Gender: ${userProfile.gender || 'Not specified'}
-- Budget: ${userProfile.budget || 'Not specified'} QAR
+- Budget: ${userProfile.budget || 'Not specified'} QAR/year
 - First-time buyer: ${userProfile.first_time_buyer ? 'Yes' : 'No'}
 - Vulnerabilities: ${JSON.stringify(userProfile.vulnerabilities || [])}
 - Insurance preferences: ${JSON.stringify(userProfile.insurance_preferences || [])}
 ` : '';
 
-    return `You are an AI insurance advisor for QIC (Qatar Insurance Company) in Qatar. Analyze the following scenario and recommend insurance plans.
+    const userName = userProfile?.name || '';
+    const userAge = userProfile?.age || null;
+    const userNationality = userProfile?.nationality || null;
+    const userBudget = userProfile?.budget || null;
+    const userVulnerabilities = Array.isArray(userProfile?.vulnerabilities) ? userProfile.vulnerabilities : [];
+    const timeContext = scenarioInputs.time_context || {};
+    const currentSeason = timeContext.season || '';
+    const currentMonth = timeContext.month || new Date().getMonth() + 1;
+    
+    const personalizedGreeting = userName ? `Hi ${userName}! ` : '';
+    const vulnerabilityContext = userVulnerabilities.length > 0 
+      ? `\nUser's identified vulnerabilities: ${userVulnerabilities.join(', ')}. Consider these when recommending plans.`
+      : '';
+    const seasonContext = currentSeason ? `\nCurrent season: ${currentSeason} (month ${currentMonth}). Consider seasonal insurance needs (e.g., travel during holidays, car maintenance before summer).` : '';
+    
+    return `You are an AI insurance advisor for QIC (Qatar Insurance Company) in Qatar. ${personalizedGreeting}Analyze the following scenario and provide comprehensive insurance recommendations.
+
+CRITICAL: ONLY use QIC (Qatar Insurance Company) information. Do not reference any other insurance provider.
 
 ${qicContext}
 
 ${profileContext}
+${vulnerabilityContext}
+${seasonContext}
 
-Scenario:
+${qicPlansJson ? `\nAvailable QIC Insurance Plans (from official QIC documentation):\n${qicPlansJson}\n` : ''}
+
+USER'S SCENARIO (THIS IS THE PRIMARY INPUT - MUST BE REFERENCED DIRECTLY):
+"${scenarioText}"
+
 Category: ${category}
-Description: ${scenarioText}
+
+CRITICAL: Your recommendations MUST be directly relevant to this EXACT scenario the user entered. Reference specific details from their scenario in your analysis.
 
 IMPORTANT REQUIREMENTS:
-1. ONLY recommend plans relevant to Qatar (all plans must comply with Qatari regulations and requirements)
-2. For each recommended plan, provide a relevance_score (1-10) indicating how relevant it is for the user's selected category and described scenario
-3. Provide an overall scenario_severity_score (1-10) indicating the urgency/severity of the scenario
-4. Sort plans from MOST RELEVANT (highest relevance_score) to LEAST RELEVANT
-5. Consider the user's profile (nationality, age, budget, first-time buyer status) when calculating relevance
-6. Factor in QIC terms & conditions, eligibility requirements, and Qatar-specific rules
+1. Generate exactly 4 general scenarios the user might encounter based on their entered scenario (one sentence each, max 20 words per scenario)
+   - Scenarios must be heavily attuned to context (user's EXACT scenario + profile + time of year)
+   - Each scenario should highlight a different risk/situation derived from the user's entered scenario
+   - Scenarios must be realistic and relevant to Qatar context
+   - Each scenario MUST include LifeScore impact at the end: " - LifeScore impact: -{X}" where X is 1-15 based on severity
+   - Example format: "You might get injured in a car crash due to high traffic density - LifeScore impact: -8"
+
+2. Determine ALL relevant insurance types from the user's EXACT scenario, then match specific QIC plans from the provided JSON structure
+   - Match plans by insurance_type (Car Insurance, Health Insurance, Personal Accident Insurance, Home Contents Insurance, Boat and Yacht Insurance, Business Shield Insurance, Golf Insurance)
+   - Extract plan_name, standard_coverages, optional_add_ons that match the scenarios
+   - Only use QIC plans - no other providers
+
+3. For EACH recommended_plan (including best_plan), generate exactly 3 plan_scenarios:
+   - Each plan_scenario must show a SPECIFIC situation where features of THIS plan would help save the user
+   - Each plan_scenario must include:
+     a) scenario: "One sentence description of where this plan's coverage helps (max 25 words)"
+     b) feature: Which coverage item/feature applies (e.g., "Third Party Liability", "Medical Evacuation")
+     c) lifescore_with_coverage: Positive impact (e.g., +5, +8) - having this coverage prevents LifeScore loss
+     d) lifescore_without_coverage: Negative impact (e.g., -5, -8) - NOT having coverage causes LifeScore loss
+     e) severity: 1-10 scale (higher = more severe scenario)
+   - Scenarios must be tailored to the user's entered scenario: "${scenarioText}"
+   - Include user profile context (name ${userProfile.name || ''}, age ${userAge}, nationality ${userNationality})
+   - Make scenarios Qatar-context relevant
+
+4. For THE ONE best plan's standard_coverages (from insurancePlans.json):
+   - For EACH standard_coverages item, generate ONE specific scenario where THIS coverage is needed
+   - Format: "You might [specific scenario tailored to user profile and Qatar context] so this {coverage_item} protects you..."
+   - Include user profile context: name ${userProfile.name || ''}, age ${userAge}, nationality ${userNationality}, vulnerabilities: ${userProfile.vulnerabilities?.join(', ') || 'none'}
+   - Include LifeScore impact (1-15) for each scenario based on severity
+   - Example: "You might get into an accident on Doha Expressway during rush hour (as a ${userNationality} resident, age ${userAge}) so Third Party Liability coverage protects you from financial responsibility for damages to other vehicles - LifeScore impact: -8"
+   - Each scenario must be concise (one sentence, max 25 words) and Qatar-context relevant
+
+5. SELECT ONLY THE ONE BEST PLAN based on:
+   a) Highest relevance_score (1-10 scale)
+   b) If scores are equal, prioritize by Maslow's hierarchy:
+      - Physiological (Health/Medical insurance) - Basic survival needs (highest priority)
+      - Safety (Car/Home/Property insurance) - Security and protection
+      - Social (Family protection plans/Travel) - Relationships and belonging
+      - Esteem/Self-actualization (Life insurance) - Status and future planning (lowest priority)
+   
+6. Return ONLY ONE best_plan (not an array)
+7. Factor in QIC terms & conditions, eligibility requirements, and Qatar-specific rules
 
 Return JSON with this exact structure:
 {
-  "narrative": "2-3 sentences analyzing the scenario",
+  "narrative": "2-3 sentences analyzing the scenario (concise)",
   "severity_score": <number 1-10>,
+  "scenarios": [
+    "Scenario 1 (one sentence, max 20 words) - LifeScore impact: -{X}",
+    "Scenario 2 (one sentence, max 20 words) - LifeScore impact: -{X}",
+    "Scenario 3 (one sentence, max 20 words) - LifeScore impact: -{X}",
+    "Scenario 4 (one sentence, max 20 words) - LifeScore impact: -{X}"
+  ],
+  "best_plan": {
+    "plan_id": "<unique identifier>",
+    "plan_name": "<plan name from QIC JSON - MUST match exactly to insurancePlans.json>",
+    "insurance_type": "<Car Insurance|Health Insurance|Personal Accident Insurance|etc>",
+    "relevance_score": <number 1-10>,
+    "scenario_logic": "You might {scenario} so {plan_name} covers you with {key_coverages} AND based on your profile info you qualify for {discount}",
+    "description": "<why this plan is relevant to the user's EXACT scenario>",
+    "qatar_compliance": "<Qatar-specific benefits/rules>",
+    "estimated_premium": "<QAR range or estimate>",
+    "key_features": ["<feature1>", "<feature2>"],
+    "standard_coverages": [{"item": "...", "limit": "...", "description": "..."}],
+    "profile_discount": "As a {profile_trait}, you qualify for {discount}",
+    "coverage_scenarios": [
+      {
+        "coverage_item": "<exact name from standard_coverages item>",
+        "scenario": "You might [specific scenario tailored to user] so this coverage protects you...",
+        "lifescore_impact": <number 1-15>
+      }
+    ],
+    "plan_scenarios": [
+      {
+        "scenario": "One sentence where this plan helps (tailored to user's entered scenario)",
+        "feature": "Which coverage item applies",
+        "lifescore_with_coverage": <positive number 1-15>,
+        "lifescore_without_coverage": <negative number -1 to -15>,
+        "severity": <number 1-10>
+      },
+      {
+        "scenario": "Second scenario",
+        "feature": "Another coverage item",
+        "lifescore_with_coverage": <positive number>,
+        "lifescore_without_coverage": <negative number>,
+        "severity": <number 1-10>
+      },
+      {
+        "scenario": "Third scenario",
+        "feature": "Third coverage item",
+        "lifescore_with_coverage": <positive number>,
+        "lifescore_without_coverage": <negative number>,
+        "severity": <number 1-10>
+      }
+    ]
+  },
   "recommended_plans": [
     {
-      "plan_id": "<plan identifier>",
+      "plan_id": "<unique identifier>",
       "plan_name": "<plan name>",
-      "plan_type": "${category}",
+      "insurance_type": "<Car Insurance|Health Insurance|etc>",
       "relevance_score": <number 1-10>,
       "description": "<why this plan is relevant>",
-      "qatar_compliance": "<Qatar-specific benefits/rules>",
-      "estimated_premium": "<range or estimate>",
-      "key_features": ["<feature1>", "<feature2>"]
+      "plan_scenarios": [
+        {"scenario": "...", "feature": "...", "lifescore_with_coverage": <number>, "lifescore_without_coverage": <number>, "severity": <number>},
+        {"scenario": "...", "feature": "...", "lifescore_with_coverage": <number>, "lifescore_without_coverage": <number>, "severity": <number>},
+        {"scenario": "...", "feature": "...", "lifescore_with_coverage": <number>, "lifescore_without_coverage": <number>, "severity": <number>}
+      ]
+    }
+  ],
+  "profile_discounts": [
+    {
+      "type": "first_time_buyer" | "age_based" | "nationality_based",
+      "discount": "10% off" | "special deal",
+      "qualification": "As a first-time buyer..." 
     }
   ],
   "suggested_missions": [
@@ -1061,7 +1489,7 @@ Return JSON with this exact structure:
   "risk_level": "low|medium|high"
 }
 
-Ensure ALL plans are Qatar-relevant and sorted by relevance_score (highest first).`;
+Ensure ALL responses are concise and instantly summarizable. ALL plans must be from QIC only.`;
   }
   buildProfilePrompt(onboardingData) {
     return `Generate AI profile from onboarding: ${JSON.stringify(onboardingData)}\n\nReturn JSON with: risk_level (low|medium|high), health_score (0..100), family_priority (low|medium|high), financial_goals (conservative|moderate|aggressive), insurance_focus (array), ai_personality (encouraging|competitive|educational|supportive).`;
@@ -1242,6 +1670,8 @@ Ensure ALL plans are Qatar-relevant and sorted by relevance_score (highest first
     const { type, inputs } = scenarioInputs;
     const category = type || scenarioInputs.category || 'car';
     const userProfile = scenarioInputs.user_profile || {};
+    // Extract scenario text properly
+    const scenarioText = scenarioInputs.scenario || scenarioInputs.scenario_description || scenarioInputs.text || '';
     
     // Calculate severity score for mock
     const severityScore = Math.min(10, Math.max(1, 
@@ -1252,6 +1682,32 @@ Ensure ALL plans are Qatar-relevant and sorted by relevance_score (highest first
     // Generate recommended plans with relevance scores
     const recommendedPlans = this.generateRecommendedPlansWithScores(category, { ...scenarioInputs, user_profile: userProfile }, severityScore);
     
+    // Generate 4 scenarios based on actual scenario text (not just category)
+    const mockScenarios = [];
+    const lcText = scenarioText.toLowerCase();
+    if (category === 'travel' || lcText.includes('trip') || lcText.includes('umrah') || lcText.includes('travel') || lcText.includes('vacation')) {
+      mockScenarios.push(
+        'You might face a medical emergency requiring hospitalization during your trip.',
+        'Your baggage could be lost or damaged during transit.',
+        'Flight delays or cancellations might disrupt your travel plans.',
+        'You could require emergency evacuation or repatriation due to unforeseen circumstances.'
+      );
+    } else if (category === 'car' || scenarioText?.toLowerCase().includes('car') || scenarioText?.toLowerCase().includes('drive')) {
+      mockScenarios.push(
+        'You might get injured in a car crash due to high traffic density.',
+        'Your vehicle could sustain damage from accidents or natural disasters.',
+        'Third-party property damage claims might arise from collisions.',
+        'Roadside breakdowns could leave you stranded without assistance.'
+      );
+    } else {
+      mockScenarios.push(
+        'You might encounter unexpected risks requiring insurance protection.',
+        'Financial losses could occur from uninsured incidents.',
+        'Legal liabilities might arise from uncovered situations.',
+        'Emergency situations could require immediate coverage support.'
+      );
+    }
+    
     const basePrediction = {
       risk_level: 'medium',
       confidence: 0.75,
@@ -1259,15 +1715,23 @@ Ensure ALL plans are Qatar-relevant and sorted by relevance_score (highest first
       potential_outcomes: []
     };
 
-    // Add severity_score and recommended_plans to all returns
+    // Add severity_score, scenarios, and recommended_plans to all returns
     const enhancedPrediction = {
       ...basePrediction,
       severity_score: severityScore,
-      recommended_plans: recommendedPlans,
+      scenarios: mockScenarios,
+      recommended_plans: recommendedPlans.map(p => ({
+        ...p,
+        scenario_logic: `You might encounter risks so ${p.plan_name} covers you with ${p.key_features?.slice(0, 3).join(', ') || 'comprehensive protection'}${userProfile.first_time_buyer ? ' AND as a first-time buyer you qualify for exclusive discounts' : ''}`,
+        profile_discount: userProfile.first_time_buyer ? 'As a first-time buyer, you qualify for 10% off' : userProfile.age && userProfile.age < 25 ? 'As a young driver under 25, you qualify for special rates' : null
+      })),
       narrative: `Analyzing your ${category} insurance scenario. Based on your profile and QIC terms, we've identified relevant insurance options.`,
       lifescore_impact: type === 'medical' || type === 'travel' ? 8 : 5,
       xp_reward: 20,
-      suggested_missions: this.buildSuggestedMissions({ category, user_profile: userProfile }, 5, 20)
+      suggested_missions: this.buildSuggestedMissions({ category, user_profile: userProfile }, 5, 20),
+      profile_discounts: userProfile.first_time_buyer ? [
+        { type: 'first_time_buyer', discount: '10% off', qualification: 'As a first-time buyer' }
+      ] : []
     };
 
     switch (type) {
@@ -1393,6 +1857,220 @@ Ensure ALL plans are Qatar-relevant and sorted by relevance_score (highest first
     score += routineScores[step2Data.daily_routine] || 0;
     
     return Math.min(Math.max(score, 0), 100);
+  }
+
+  /**
+   * Generate personalized plan detail content for Explore page
+   * @param {Object} plan - Insurance plan object
+   * @param {Object} userProfile - User profile data
+   * @param {string} scenarioText - User's scenario description
+   * @returns {Promise<Object>} Formatted plan detail content
+   */
+  async generatePlanDetailContent(plan, userProfile, scenarioText) {
+    // Only use mock if genuinely no API available
+    if (this.isMockMode) {
+      logger.warn('AI API not available for plan detail, using template fallback');
+      return this._generateMockPlanDetail(plan, userProfile, scenarioText);
+    }
+
+    // ALWAYS attempt real AI API call when OpenAI is configured
+    if (this.provider === 'openai' && this.openai) {
+      try {
+        const prompt = this._buildPlanDetailPrompt(plan, userProfile, scenarioText);
+        const raw = await this.sendOpenAiPrompt(prompt, { maxTokens: 1200, enableBrowsing: true });
+        
+        if (!raw || raw.trim() === '') {
+          throw new Error('Empty response from OpenAI API for plan detail');
+        }
+        
+        const parsed = this.parseJsonOrFallback(raw, () => this._generateMockPlanDetail(plan, userProfile, scenarioText));
+        if (!parsed || typeof parsed !== 'object') {
+          throw new Error('Failed to parse AI plan detail response');
+        }
+        
+        logger.info('Plan detail content generated', {
+          plan_name: plan.plan_name,
+          hasContent: !!parsed.header
+        });
+        
+        return parsed;
+      } catch (error) {
+        logger.error('OpenAI API call failed for plan detail - falling back to template', { error: error?.message });
+        return this._generateMockPlanDetail(plan, userProfile, scenarioText);
+      }
+    }
+    
+    // Fallback to mock/template
+    return this._generateMockPlanDetail(plan, userProfile, scenarioText);
+  }
+
+  _buildPlanDetailPrompt(plan, userProfile, scenarioText) {
+    const profile = userProfile?.profile_json || userProfile || {};
+    const userName = profile.name || 'User';
+    const userAge = profile.age || 30;
+    const userGender = profile.gender || '';
+    const userNationality = profile.nationality || '';
+    const userBudget = profile.budget || 0;
+    const vulnerabilities = Array.isArray(profile.vulnerabilities) ? profile.vulnerabilities : [];
+    const firstTimeBuyer = profile.first_time_buyer || false;
+
+    const planName = plan.plan_name || plan.name || '';
+    const insuranceType = plan.insurance_type || plan.type || '';
+    const standardCoverages = plan.standard_coverages || [];
+    const optionalAddOns = plan.optional_add_ons || [];
+    const exclusions = plan.exclusions || [];
+
+    return `You are QIC AI, a warm Qatari insurance advisor. Generate a comprehensive, personalized plan detail page for ${userName}.
+
+USER'S SCENARIO: "${scenarioText || 'General insurance needs'}"
+
+PLAN DETAILS:
+- Plan Name: ${planName}
+- Insurance Type: ${insuranceType}
+- Standard Coverages: ${JSON.stringify(standardCoverages)}
+- Optional Add-ons: ${JSON.stringify(optionalAddOns)}
+- Exclusions: ${JSON.stringify(exclusions)}
+
+USER PROFILE:
+- Name: ${userName}
+- Age: ${userAge}
+- Gender: ${userGender}
+- Nationality: ${userNationality}
+- Budget: ${userBudget} QAR/year
+- Vulnerabilities: ${vulnerabilities.join(', ') || 'None'}
+- First-time buyer: ${firstTimeBuyer ? 'Yes' : 'No'}
+
+CRITICAL: Generate content matching this EXACT JSON structure:
+
+{
+  "header": "${planName} - Personalized for ${userName} (${userAge}, ${userGender || 'N/A'}${userNationality ? ', ' + userNationality : ''}${scenarioText ? ', ' + scenarioText.substring(0, 50) : ''}${userBudget > 0 ? ', Budget ' + userBudget + ' QAR/year' : ''})",
+  "welcomeMessage": "2-3 sentences personalized greeting mentioning ${userName}'s age (${userAge}), scenario (${scenarioText}), and why ${planName} is perfect for them. Be warm, Qatari-context aware, and encouraging.",
+  "whyItFits": [
+    ${[
+      userGender ? `"Age & Gender Relevance: At ${userAge} and ${userGender}, [why this plan fits age/gender]"` : `"Age Relevance: At ${userAge}, [why this plan fits your age]"`,
+      scenarioText ? `"Your Plan Context: ${scenarioText.substring(0, 60)} - This policy directly addresses these needs."` : '"General relevance based on your profile."',
+      userNationality ? `"${userNationality} Customer Perks: As a QIC customer, you get instant digital issuance, QAR payments, local support."` : '"QIC Customer Benefits: Instant digital issuance, QAR payments, local support."',
+      userBudget > 0 ? `"Cost for You: Estimated QAR range based on your ${userBudget} QAR/year budget."` : '"Cost Estimate: Contact QIC for pricing."',
+      vulnerabilities.length > 0 ? `"Your Identified Needs: ${vulnerabilities.join(', ')} - this plan addresses these."` : null,
+      firstTimeBuyer ? '"First-Time Buyer Friendly: Straightforward coverage, perfect for getting started."' : null
+    ].filter(Boolean).join(',\n    ')}
+  ],
+  "coverageTable": [
+    ${standardCoverages.map((cov, idx) => {
+      const item = typeof cov === 'string' ? cov : (cov.item || '');
+      const limit = typeof cov === 'string' ? 'Not specified' : (cov.limit || 'Not specified');
+      const desc = typeof cov === 'string' ? '' : (cov.description || '');
+      const itemEscaped = item.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+      const limitEscaped = limit.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+      const descEscaped = (desc || item + ' coverage').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+      const scenarioContext = scenarioText ? scenarioText.substring(0, 40).replace(/"/g, '\\"') : 'their needs';
+      return `{
+        "coverageItem": "${itemEscaped}",
+        "limit": "${limitEscaped}",
+        "whatsCovered": "${descEscaped}",
+        "whyItMatters": "One sentence explaining why ${itemEscaped} matters for ${userName} (age ${userAge}, ${userNationality || 'in Qatar'}) in context of ${scenarioContext}"
+      }`;
+    }).join(',\n    ')}
+  ],
+  "scenarios": [
+    ${[0, 1, 2].map((idx) => {
+      const coverageItem = standardCoverages[idx] ? (typeof standardCoverages[idx] === 'string' ? standardCoverages[idx] : standardCoverages[idx].item) : '';
+      const coverageItemEscaped = (coverageItem || 'Coverage Protection').replace(/"/g, '\\"');
+      const severity = 3 + (idx * 2);
+      const lifescoreWithout = -Math.min(15, 5 + (idx * 3));
+      const lifescoreWith = Math.abs(lifescoreWithout) - 2;
+      const scenarioPart = scenarioText ? 'planning ' + scenarioText.substring(0, 30).replace(/"/g, '\\"') : 'in a situation';
+      return `{
+        "title": "Scenario ${idx + 1}: ${coverageItemEscaped} (Age-Relevant)",
+        "description": "One detailed sentence: ${userName} (${userAge}, ${userGender || 'N/A'}, ${userNationality || 'Qatari'}) ${scenarioPart} where ${coverageItemEscaped} coverage would protect them. Include specific context (location, activity, risk).",
+        "lifescoreWithCoverage": ${lifescoreWith},
+        "lifescoreWithoutCoverage": ${lifescoreWithout},
+        "netBenefit": ${lifescoreWith + Math.abs(lifescoreWithout)},
+        "savings": "Savings: [amount or protection description]. Without insurance, you'd face [consequence]."
+      }`;
+    }).join(',\n    ')}
+  ],
+  "exclusions": [
+    ${exclusions.map((exc) => {
+      const desc = typeof exc === 'string' ? exc : (exc.description || exc.item || '');
+      return `"${desc.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`;
+    }).join(',\n    ')}
+  ],
+  "nextSteps": [
+    {
+      "step": 1,
+      "title": "Get Quote",
+      "description": "Visit qic.online – enter your details for instant pricing.",
+      "link": "https://qic.online"
+    },
+    {
+      "step": 2,
+      "title": "Buy & Download",
+      "description": "Pay QAR via card; get PDF policy emailed instantly.",
+      "link": "https://qic.online"
+    },
+    {
+      "step": 3,
+      "title": "${(scenarioText && scenarioText.toLowerCase().includes('visa')) ? 'Visa Ready' : 'Secure Your Coverage'}",
+      "description": "${(scenarioText && scenarioText.toLowerCase().includes('visa')) ? 'Print/email the policy – embassies accept QIC format.' : 'Your coverage is active immediately upon purchase.'}"
+    },
+    {
+      "step": 4,
+      "title": "Claims?",
+      "description": "24/7 hotline (8000 742) or app – file digitally for fast payouts."
+    }
+  ],
+  "contactInfo": "${userName}, with QIC, your coverage is protected – focus on what matters, not the 'what-ifs'. Questions? Chat us at 5000 0742 or email support@qic.com.qa. Safe travels! *Policy details based on QIC's 2025 terms; limits/exclusions may vary. Always review full wording.*"
+}
+
+Ensure ALL content is:
+- Personalized to ${userName}'s exact profile (age ${userAge}, ${userGender}, ${userNationality}, ${scenarioText ? `scenario: ${scenarioText}` : 'general needs'})
+- Qatar-context aware
+- Concise and instantly summarizable
+- Referencing specific details from their scenario: "${scenarioText}"
+- Using exact plan coverage details from provided data
+
+Return ONLY the JSON object, no extra text.`;
+  }
+
+  _generateMockPlanDetail(plan, userProfile, scenarioText) {
+    // Fallback template-based content
+    const profile = userProfile?.profile_json || userProfile || {};
+    const userName = profile.name || 'User';
+    
+    return {
+      header: `${plan.plan_name || plan.name} - Personalized for ${userName}`,
+      welcomeMessage: `This plan is designed to meet your insurance needs.`,
+      whyItFits: [
+        `Tailored Protection: This plan is specifically designed to match your profile and provide comprehensive coverage.`
+      ],
+      coverageTable: (plan.standard_coverages || []).slice(0, 5).map((cov) => ({
+        coverageItem: typeof cov === 'string' ? cov : (cov.item || ''),
+        limit: typeof cov === 'string' ? 'Not specified' : (cov.limit || 'Not specified'),
+        whatsCovered: typeof cov === 'string' ? '' : (cov.description || ''),
+        whyItMatters: `Protects you from financial losses related to this coverage.`
+      })),
+      scenarios: [
+        {
+          title: 'Scenario 1: Coverage Protection',
+          description: `${userName} might encounter a situation requiring this coverage.`,
+          lifescoreWithCoverage: 5,
+          lifescoreWithoutCoverage: -5,
+          netBenefit: 10,
+          savings: 'Savings: Protected amount'
+        }
+      ],
+      exclusions: (plan.exclusions || []).map((exc) => typeof exc === 'string' ? exc : (exc.description || '')),
+      nextSteps: [
+        {
+          step: 1,
+          title: 'Get Quote',
+          description: 'Visit qic.online for instant pricing.',
+          link: 'https://qic.online'
+        }
+      ],
+      contactInfo: `${userName}, with QIC, your coverage is protected. Questions? Contact 5000 0742.`
+    };
   }
 }
 

@@ -85,6 +85,49 @@ export const strictRateLimit = rateLimit({
   }
 });
 
+// More lenient rate limit for mission completion (users should be able to complete missions)
+export const missionCompletionRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 30, // Allow 30 completion attempts per 15 minutes (much more lenient)
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req, res) => {
+    // Use user ID if authenticated for per-user limits
+    const userId = req.user?.id;
+    return userId ? `user:${userId}` : (req.headers['x-session-id'] || ipKeyGenerator(req, res));
+  },
+  message: {
+    success: false,
+    message: 'Too many mission completion attempts. Please wait a moment.'
+  },
+  skip: (req) => {
+    // Skip rate limiting in dev mode if flag is set
+    return isDev && process.env.SKIP_DAILY_LIMIT === 'true';
+  }
+});
+
+// Daily token limit for AI endpoints (prevents excessive OpenAI API usage)
+// Updated to 12k tokens/credits per user per day (approximately 60 API calls at ~200 tokens per call)
+export const dailyTokenLimit = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, // 24 hours
+  limit: parseInt(process.env.DAILY_TOKEN_LIMIT || '60', 10), // Max 60 AI calls per day per user (12k tokens equivalent)
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req, res) => {
+    // Use user ID if authenticated, otherwise fallback to IP
+    const userId = req.user?.id;
+    return userId ? `user:${userId}` : (req.headers['x-session-id'] || ipKeyGenerator(req, res));
+  },
+  message: {
+    success: false,
+    message: 'Daily AI token limit exceeded. Please try again tomorrow.'
+  },
+  skip: (req) => {
+    // Skip rate limiting in dev mode for testing
+    return isDev && process.env.SKIP_DAILY_LIMIT === 'true';
+  }
+});
+
 // Input sanitization middleware
 export const sanitizeInput = (req, res, next) => {
   // Remove any potential XSS attempts

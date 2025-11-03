@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getRemainingSpins, spinRoulette } from '@/lib/api';
+import { getRemainingSpins, spinRoulette, getProfile } from '@/lib/api';
 import { CardSkeleton } from '@/components/Skeletons';
 import { motion } from 'framer-motion';
 import { cardEntranceVariants } from '@/lib/animations';
@@ -9,14 +9,25 @@ import { useTranslation } from 'react-i18next';
 import MajlisLayout from '@/components/MajlisLayout';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCoins } from '@/lib/coins';
+import RouletteWheel from '@/components/RouletteWheel';
+import { getRouletteOptions } from '@/data/rouletteOptions';
 
 export default function Play() {
   const { t } = useTranslation();
   const toast = useToast();
   const qc = useQueryClient();
-  const { refreshCoins } = useCoins();
+  const { refreshCoins, addCoins } = useCoins();
   const [spinning, setSpinning] = useState(false);
   const [rouletteResult, setRouletteResult] = useState<any | null>(null);
+  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
+
+  // Get user profile for personalization
+  const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: getProfile });
+  const userName = (profile as any)?.userProfile?.profile_json?.name || '';
+  const nationality = (profile as any)?.userProfile?.profile_json?.nationality || null;
+  
+  // Get wheel options based on nationality
+  const wheelOptions = getRouletteOptions(nationality);
 
   // Get remaining spins
   const { data: spinsData, refetch: refetchSpins } = useQuery({
@@ -33,8 +44,41 @@ export default function Play() {
     
     try {
       setSpinning(true);
+      setRouletteResult(null);
+      setSelectedOptionId(null);
+      
       const result = await spinRoulette();
       setRouletteResult(result);
+      
+      // Map API result to wheel option
+      // Try to match by title, reward, or keywords
+      if (result.wheel_spin_result) {
+        const resultLower = result.wheel_spin_result.toLowerCase();
+        let matchedOption = wheelOptions.find(opt => {
+          const titleLower = opt.title.toLowerCase();
+          const rewardLower = opt.reward.toLowerCase();
+          return titleLower.includes(resultLower) ||
+                 resultLower.includes(titleLower) ||
+                 rewardLower.includes(resultLower) ||
+                 resultLower.includes('free') && opt.id.includes('free-insurance') ||
+                 resultLower.includes('coin') && opt.id.includes('coins') ||
+                 (resultLower.includes('traditional') || resultLower.includes('heritage')) && opt.id.includes('qatari-itinerary') ||
+                 resultLower.includes('modern') && opt.id.includes('expat-itinerary') ||
+                 (resultLower.includes('futuristic') || resultLower.includes('future')) && opt.id.includes('visitor-itinerary');
+        });
+        
+        if (matchedOption) {
+          setSelectedOptionId(matchedOption.id);
+        } else {
+          // Fallback: select random option from wheel
+          const randomOption = wheelOptions[Math.floor(Math.random() * wheelOptions.length)];
+          setSelectedOptionId(randomOption.id);
+        }
+      } else {
+        // If no API result, select random option
+        const randomOption = wheelOptions[Math.floor(Math.random() * wheelOptions.length)];
+        setSelectedOptionId(randomOption.id);
+      }
       
       // Award coins and XP (refresh from backend)
       await refreshCoins();
@@ -53,13 +97,62 @@ export default function Play() {
       } else {
         toast.error(t('play.roulette.spinFailed') || 'Failed to spin roulette', errorMsg);
       }
-    } finally {
       setSpinning(false);
+    }
+  };
+
+  const handleSpinComplete = () => {
+    // Wheel animation completed
+    setSpinning(false);
+  };
+
+  // Handle itinerary document download
+  const handleDownloadItinerary = async (option: typeof wheelOptions[0]) => {
+    if (!option.documentUrl) return;
+    
+    try {
+      const response = await fetch(option.documentUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch document');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = option.documentUrl.split('/').pop() || 'itinerary.docx';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      
+      // Trigger download
+      link.click();
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      toast.success(
+        t('play.roulette.downloadSuccess') || 'Downloaded!',
+        `${option.title} has been saved to your device.`
+      );
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      toast.error(
+        t('play.roulette.downloadFailed') || 'Download failed',
+        'Unable to download file. Please try again later.'
+      );
     }
   };
 
   return (
     <MajlisLayout titleKey="play.title" icon={<DatePalmIcon size={18} color="var(--qic-secondary)" />}>
+      {userName && (
+        <div style={{ marginBottom: 12, fontSize: 16, color: 'var(--qic-primary)', fontWeight: 500 }}>
+          Hi {userName}! Ready for your daily spin? 🦅
+        </div>
+      )}
       {/* Road-Trip Roulette Section */}
       <div className="qic-card" style={{ padding: 20, marginBottom: 20, textAlign: 'center', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderRadius: 16 }}>
         <div style={{ fontSize: 32, marginBottom: 8 }}>🦅</div>
@@ -72,6 +165,14 @@ export default function Play() {
         <div style={{ marginBottom: 20, fontSize: 16, fontWeight: 600 }}>
           {t('play.roulette.spinsRemaining') || 'Spins remaining'}: <span style={{ color: '#FFD700' }}>{remainingSpins}/3</span>
         </div>
+
+        {/* Spinning Wheel */}
+        <RouletteWheel 
+          options={wheelOptions}
+          spinning={spinning}
+          selectedOptionId={selectedOptionId}
+          onSpinComplete={handleSpinComplete}
+        />
 
         {/* Spin Button */}
         <button
@@ -158,8 +259,101 @@ export default function Play() {
 
             {/* Reward */}
             <div style={{ fontSize: 18, fontWeight: 700, color: '#FFD700', marginTop: 16, padding: '12px 16px', background: 'rgba(255, 215, 0, 0.2)', borderRadius: 8 }}>
-              🎁 {rouletteResult.reward || '100 QIC Coins'}
+              🎁 {selectedOptionId ? (() => {
+                const selectedOption = wheelOptions.find(opt => opt.id === selectedOptionId);
+                return selectedOption?.reward || rouletteResult.reward || '100 QIC Coins';
+              })() : (rouletteResult.reward || '100 QIC Coins')}
             </div>
+
+            {/* Action Buttons: Claim for Coins, Download for Itineraries */}
+            {selectedOptionId && (() => {
+              const selectedOption = wheelOptions.find(opt => opt.id === selectedOptionId);
+              if (!selectedOption) return null;
+
+              // Show Claim button for coins
+              if (selectedOption.id.includes('coins')) {
+                return (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await addCoins(100);
+                        await refreshCoins();
+                        toast.success(
+                          t('play.roulette.coinsClaimed') || 'Coins Claimed!',
+                          '100 QIC Coins have been added to your account.'
+                        );
+                      } catch (error) {
+                        toast.error(
+                          t('play.roulette.claimFailed') || 'Claim Failed',
+                          'Unable to add coins. Please try again.'
+                        );
+                      }
+                    }}
+                    style={{
+                      marginTop: 16,
+                      padding: '12px 24px',
+                      background: 'rgba(255, 215, 0, 0.3)',
+                      color: 'white',
+                      border: '2px solid rgba(255, 215, 0, 0.6)',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      width: '100%'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 215, 0, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 215, 0, 0.3)';
+                    }}
+                  >
+                    ✅ Claim 100 QIC Coins
+                  </button>
+                );
+              }
+
+              // Show Download button for itineraries
+              if (selectedOption.documentUrl) {
+                return (
+                  <button
+                    onClick={() => handleDownloadItinerary(selectedOption)}
+                    style={{
+                      marginTop: 16,
+                      padding: '12px 24px',
+                      background: 'rgba(255, 255, 255, 0.25)',
+                      color: 'white',
+                      border: '2px solid rgba(255, 255, 255, 0.5)',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      width: '100%'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.35)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
+                    }}
+                  >
+                    📥 Download {selectedOption.title}
+                  </button>
+                );
+              }
+
+              return null;
+            })()}
           </motion.div>
         )}
       </div>

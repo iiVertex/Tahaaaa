@@ -52,6 +52,7 @@ export default function Rewards() {
                 profileData?.coins ?? 
                 (userProfile?.profile_json as any)?.coins ?? 
                 0;
+  const userName = userProfile?.profile_json?.name || '';
   const [quoteOpen, setQuoteOpen] = React.useState(false);
   const [quoteProductId, setQuoteProductId] = React.useState<string | undefined>(undefined);
   // Safely extract offers array, ensuring it's always an array
@@ -63,6 +64,11 @@ export default function Rewards() {
 
   return (
     <MajlisLayout titleKey="rewards.title" icon={<DatePalmIcon size={18} color="var(--qic-secondary)" />}>
+      {userName && (
+        <div style={{ marginBottom: 12, fontSize: 16, color: 'var(--qic-primary)', fontWeight: 500 }}>
+          Hey {userName}, you have {coins.toLocaleString()} coins! 💰
+        </div>
+      )}
       <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
         <motion.span variants={rewardUnlockVariants} initial="initial" animate="animate" style={{ display: 'inline-block', width: 18, height: 18, borderRadius: 9999, background: 'var(--qic-accent)' }} />
         <div>{t('rewards.coinsBalance', { amount: coins })}</div>
@@ -156,15 +162,47 @@ export default function Rewards() {
       </div>
       <div style={{ marginTop: 12 }}>
         <button
-          onClick={() => {
-            shareReferral().then((res:any)=>{
-              toast.success(t('rewards.referralReady'), res?.data?.share_url || '');
+          onClick={async () => {
+            try {
+              // Check if user has recently completed a mission for context-aware message
+              const { data: missionsData } = await import('@/lib/api').then(m => m.getMissions?.());
+              const completedMissions = Array.isArray(missionsData) 
+                ? missionsData.filter((m: any) => m.user_progress?.status === 'completed')
+                : [];
+              const recentCompleted = completedMissions
+                .sort((a: any, b: any) => {
+                  const aTime = new Date(a.user_progress?.completed_at || 0).getTime();
+                  const bTime = new Date(b.user_progress?.completed_at || 0).getTime();
+                  return bTime - aTime;
+                })[0];
+              
+              // Build context for referral message
+              const context: any = {};
+              if (recentCompleted) {
+                context.recent_mission = {
+                  name: recentCompleted.title_en || recentCompleted.title,
+                  coins: recentCompleted.user_progress?.coins_earned || 0,
+                  lifescore: recentCompleted.user_progress?.lifescore_change || 0
+                };
+              }
+              
+              const res: any = await shareReferral(context);
+              const referralMessage = res?.data?.referral_message || res?.data?.share_url || '';
+              const emailSubject = res?.data?.email_subject || 'Join QIC Life';
+              
+              // Open email client in new tab with pre-filled message
+              const mailtoLink = `mailto:?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(referralMessage)}`;
+              window.open(mailtoLink, '_blank');
+              
+              toast.success(t('rewards.referralReady') || 'Referral email opened!', 'Share your code with friends');
               track('referral_share');
-            }).catch((e)=> toast.error(t('rewards.referralFailed'), e?.message));
+            } catch (e: any) {
+              toast.error(t('rewards.referralFailed') || 'Referral failed', e?.message);
+            }
           }}
           style={{ background: 'transparent', color: 'var(--qic-primary)', borderColor: 'var(--qic-primary)' }}
         >
-          {t('rewards.shareReferral')}
+          {t('rewards.shareReferral') || 'Get Referral'}
         </button>
       </div>
       <QuoteDrawer open={quoteOpen} onClose={()=>{ setQuoteOpen(false); }} productId={quoteProductId} />

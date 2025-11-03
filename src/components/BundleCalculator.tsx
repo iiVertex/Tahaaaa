@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getProductsCatalog } from '@/lib/api';
+import { getProductsCatalog, saveBundle } from '@/lib/api';
 import { useTranslation } from 'react-i18next';
 import { useCoins } from '@/lib/coins';
+import { useToast } from '@/components/Toast';
 import qicTerms from '@/data/qic-terms.json';
 
 type Product = { id: string; name: string; base_premium?: number; eligible?: boolean; type?: string };
 
 export default function BundleCalculator({ onStartQuote }:{ onStartQuote?: (ids: string[]) => void }) {
   const { t } = useTranslation();
-  const { coins } = useCoins();
+  const { coins, refreshCoins } = useCoins();
+  const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [savings, setSavings] = useState<any | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     getProductsCatalog().then((p:any)=> setProducts(p || [])).catch(()=> setProducts([]));
@@ -23,8 +26,8 @@ export default function BundleCalculator({ onStartQuote }:{ onStartQuote?: (ids:
       const selectedProducts = products.filter(p => selected.includes(p.id));
       const bundleDiscount = calculateBundleDiscount(selected.length, selectedProducts);
       
-      // Calculate coins discount: 1% per 500 coins (capped at reasonable max, e.g., 20%)
-      const coinsDiscountPercent = Math.min(20, Math.floor(coins / 500) * 1);
+      // Calculate coins discount: 1% per 100 coins (capped at reasonable max, e.g., 20%)
+      const coinsDiscountPercent = Math.min(20, Math.floor(coins / 100) * 1);
       
       const subtotalCalc = selectedProducts.reduce((s, p) => s + (p.base_premium || 0), 0);
       
@@ -150,11 +153,247 @@ export default function BundleCalculator({ onStartQuote }:{ onStartQuote?: (ids:
           </div>
         </div>
       )}
-      <div>
-        <button onClick={() => onStartQuote?.(selected)} disabled={selected.length < 1}>{t('quote.cta') || 'Start Quote'}</button>
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <button 
+          onClick={async () => {
+            if (!savings || selected.length === 0) return;
+            setSaving(true);
+            try {
+              const selectedProducts = products.filter(p => selected.includes(p.id));
+              const bundleData = {
+                products: selectedProducts.map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  base_premium: p.base_premium || 0,
+                  type: p.type
+                })),
+                bundle_data: {
+                  selected_product_ids: selected,
+                  timestamp: new Date().toISOString()
+                },
+                base_premium_total: savings.total + savings.savings_amount, // Reconstruct subtotal
+                bundle_discount_percentage: savings.bundle_discount_percentage || 0,
+                coins_discount_percentage: savings.coins_discount_percentage || 0,
+                total_discount_percentage: savings.discount_percentage || 0,
+                bundle_savings_amount: savings.bundle_savings_amount || 0,
+                coins_savings_amount: savings.coins_savings_amount || 0,
+                total_savings_amount: savings.savings_amount || 0,
+                final_price_after_discount: savings.total || 0
+              };
+
+              const result = await saveBundle(bundleData);
+              
+              // Generate and download CSV - with error handling
+              try {
+                generateCSV(bundleData, result);
+              } catch (csvError: any) {
+                console.error('CSV generation failed:', csvError);
+                toast?.error?.('CSV download failed', csvError?.message || 'Unable to generate CSV file');
+              }
+              
+              // Refresh coins
+              await refreshCoins();
+              
+              toast?.success?.('Bundle saved!', `Coins deducted. CSV downloaded.`);
+            } catch (error: any) {
+              toast?.error?.('Failed to save bundle', error?.message || 'Unknown error');
+            } finally {
+              setSaving(false);
+            }
+          }}
+          disabled={selected.length < 1 || !savings || saving}
+          style={{
+            flex: 1,
+            padding: '10px 16px',
+            background: savings ? 'var(--qic-secondary)' : '#ccc',
+            color: 'white',
+            border: 'none',
+            borderRadius: 6,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: savings && !saving ? 'pointer' : 'not-allowed',
+            opacity: (savings && !saving) ? 1 : 0.6
+          }}
+        >
+          {saving ? (t('saving') || 'Saving...') : (savings ? `Save ${Math.round(savings.discount_percentage || 0)}%` : (t('bundle.save') || 'Save Bundle Estimate'))}
+        </button>
+        <button 
+          onClick={async () => {
+            if (selected.length < 1 || !savings) return;
+            try {
+              // Generate CSV for quote estimate (without saving bundle)
+              const selectedProducts = products.filter(p => selected.includes(p.id));
+              const quoteData = {
+                products: selectedProducts.map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  base_premium: p.base_premium || 0,
+                  type: p.type
+                })),
+                bundle_data: {
+                  selected_product_ids: selected,
+                  timestamp: new Date().toISOString(),
+                  is_quote: true // Mark as quote, not saved bundle
+                },
+                base_premium_total: savings.total + savings.savings_amount,
+                bundle_discount_percentage: savings.bundle_discount_percentage || 0,
+                coins_discount_percentage: savings.coins_discount_percentage || 0,
+                total_discount_percentage: savings.discount_percentage || 0,
+                bundle_savings_amount: savings.bundle_savings_amount || 0,
+                coins_savings_amount: savings.coins_savings_amount || 0,
+                total_savings_amount: savings.savings_amount || 0,
+                final_price_after_discount: savings.total || 0
+              };
+              
+              // Generate and download CSV for quote
+              generateCSV(quoteData, { data: { coins_deducted: 0, remaining_coins: coins } });
+              
+              // Also open quote drawer if handler provided
+              if (onStartQuote) {
+                onStartQuote(selected);
+              }
+              
+              toast?.success?.('Quote generated!', 'CSV downloaded with pricing details.');
+            } catch (error: any) {
+              toast?.error?.('Failed to generate quote', error?.message || 'Unable to generate CSV');
+            }
+          }}
+          disabled={selected.length < 1 || !savings}
+          style={{
+            padding: '10px 16px',
+            background: (selected.length >= 1 && savings) ? 'var(--qic-primary)' : '#ccc',
+            color: 'white',
+            border: 'none',
+            borderRadius: 6,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: (selected.length >= 1 && savings) ? 'pointer' : 'not-allowed',
+            opacity: (selected.length >= 1 && savings) ? 1 : 0.6
+          }}
+        >
+          {t('quote.cta') || 'Get Quote'}
+        </button>
       </div>
     </div>
   );
+}
+
+function generateCSV(bundleData: any, saveResult: any) {
+  // Validate bundleData
+  if (!bundleData || !bundleData.products || !Array.isArray(bundleData.products)) {
+    throw new Error('Invalid bundle data: products array is required');
+  }
+  
+  if (bundleData.products.length === 0) {
+    throw new Error('No products selected for bundle');
+  }
+  
+  const rows: string[][] = [];
+  
+  // Header row
+  rows.push([
+    'Product Name',
+    'Base Premium (QAR/month)',
+    'Bundle Discount (%)',
+    'Coins Discount (%)',
+    'Total Discount (%)',
+    'Bundle Savings (QAR/month)',
+    'Coins Savings (QAR/month)',
+    'Total Savings (QAR/month)',
+    'Final Price After Discount (QAR/month)'
+  ]);
+  
+  // Calculate per-product breakdown with defaults
+  const basePremiumTotal = bundleData.base_premium_total || 0;
+  const bundleDiscountPercent = bundleData.bundle_discount_percentage || 0;
+  const coinsDiscountPercent = bundleData.coins_discount_percentage || 0;
+  const totalDiscountPercent = bundleData.total_discount_percentage || 0;
+  const bundleSavingsAmount = bundleData.bundle_savings_amount || 0;
+  const coinsSavingsAmount = bundleData.coins_savings_amount || 0;
+  const totalSavingsAmount = bundleData.total_savings_amount || 0;
+  const finalPrice = bundleData.final_price_after_discount || 0;
+  
+  // Add product rows - validate each product has required fields
+  bundleData.products.forEach((product: any) => {
+    if (!product) {
+      console.warn('Skipping invalid product in CSV generation');
+      return;
+    }
+    const productBasePremium = Number(product.base_premium) || 0;
+    const productBundleSavings = (productBasePremium * bundleDiscountPercent) / 100;
+    const productCoinsSavings = (productBasePremium * coinsDiscountPercent) / 100;
+    const productTotalSavings = productBundleSavings + productCoinsSavings;
+    const productFinalPrice = productBasePremium - productTotalSavings;
+    
+    rows.push([
+      product.name || product.id,
+      productBasePremium.toFixed(2),
+      bundleDiscountPercent.toFixed(2),
+      coinsDiscountPercent.toFixed(2),
+      totalDiscountPercent.toFixed(2),
+      productBundleSavings.toFixed(2),
+      productCoinsSavings.toFixed(2),
+      productTotalSavings.toFixed(2),
+      productFinalPrice.toFixed(2)
+    ]);
+  });
+  
+  // Add summary row
+  rows.push([]);
+  rows.push(['TOTALS', '', '', '', '', '', '', '', '']);
+  rows.push([
+    'Total Combined',
+    basePremiumTotal.toFixed(2),
+    bundleDiscountPercent.toFixed(2),
+    coinsDiscountPercent.toFixed(2),
+    totalDiscountPercent.toFixed(2),
+    bundleSavingsAmount.toFixed(2),
+    coinsSavingsAmount.toFixed(2),
+    totalSavingsAmount.toFixed(2),
+    finalPrice.toFixed(2)
+  ]);
+  
+  // Add metadata rows
+  rows.push([]);
+  rows.push(['Metadata', '', '', '', '', '', '', '', '']);
+  rows.push(['Date Generated', new Date().toISOString(), '', '', '', '', '', '', '']);
+  rows.push(['Coins Deducted', (saveResult?.data?.coins_deducted || 0).toString(), '', '', '', '', '', '', '']);
+  rows.push(['Remaining Coins', (saveResult?.data?.remaining_coins || 0).toString(), '', '', '', '', '', '', '']);
+  
+  // Convert to CSV string
+  const csvContent = rows.map(row => 
+    row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+  ).join('\n');
+  
+  // Create blob and download
+  const isQuote = bundleData.bundle_data?.is_quote || false;
+  const filename = isQuote 
+    ? `qic-quote-${new Date().toISOString().split('T')[0]}.csv`
+    : `qic-bundle-${new Date().toISOString().split('T')[0]}.csv`;
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  
+  // Trigger download with timeout to ensure it happens
+  setTimeout(() => {
+    try {
+      link.click();
+      // Cleanup after a delay to ensure download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+    } catch (downloadError) {
+      console.error('CSV download trigger failed:', downloadError);
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      throw new Error('Failed to trigger CSV download');
+    }
+  }, 0);
 }
 
 

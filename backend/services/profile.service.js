@@ -74,6 +74,10 @@ export class ProfileService {
         : {
             ...(existing?.profile_json || {}),
             ...profile_json, // New fields override old ones
+            // Ensure arrays are always arrays (never undefined/null)
+            insurance_preferences: Array.isArray(profile_json.insurance_preferences) ? profile_json.insurance_preferences : (profile_json.insurance_preferences !== undefined ? (existing?.profile_json?.insurance_preferences || []) : (existing?.profile_json?.insurance_preferences || [])),
+            areas_of_interest: Array.isArray(profile_json.areas_of_interest) ? profile_json.areas_of_interest : (profile_json.areas_of_interest !== undefined ? (existing?.profile_json?.areas_of_interest || []) : (existing?.profile_json?.areas_of_interest || [])),
+            vulnerabilities: Array.isArray(profile_json.vulnerabilities) ? profile_json.vulnerabilities : (profile_json.vulnerabilities !== undefined ? (existing?.profile_json?.vulnerabilities || []) : (existing?.profile_json?.vulnerabilities || [])),
             // Preserve preferences and settings if they exist in payload but merge with profile_json
             preferences: profile_json.preferences !== undefined ? (profile_json.preferences || existing?.profile_json?.preferences || {}) : existing?.profile_json?.preferences || {},
             settings: profile_json.settings !== undefined ? (profile_json.settings || existing?.profile_json?.settings || {}) : existing?.profile_json?.settings || {}
@@ -84,15 +88,43 @@ export class ProfileService {
         existingKeys: Object.keys(existing?.profile_json || {}),
         newKeys: Object.keys(profile_json),
         mergedKeys: Object.keys(mergedProfile),
-        isClearing: isClearing
+        isClearing: isClearing,
+        insurancePrefsType: Array.isArray(mergedProfile.insurance_preferences) ? 'array' : typeof mergedProfile.insurance_preferences,
+        insurancePrefsLength: Array.isArray(mergedProfile.insurance_preferences) ? mergedProfile.insurance_preferences.length : 'N/A'
       });
       
       if (!existing) {
         const created = await this.usersRepo.createUserProfile(userId, mergedProfile);
-        logger.info('Profile created', { userId, created: !!created });
+        logger.info('Profile created', { 
+          userId, 
+          created: !!created,
+          profileKeys: Object.keys(mergedProfile),
+          name: mergedProfile.name,
+          age: mergedProfile.age
+        });
+        // Verify it was actually created
+        const verify = await this.usersRepo.getUserProfile(userId);
+        if (!verify || !verify.profile_json) {
+          logger.error('Profile creation verification failed', { userId });
+        }
       } else {
         const updated = await this.usersRepo.updateUserProfile(userId, mergedProfile);
-        logger.info('Profile updated', { userId, updated: !!updated });
+        logger.info('Profile updated', { 
+          userId, 
+          updated: !!updated,
+          profileKeys: Object.keys(mergedProfile),
+          name: mergedProfile.name,
+          age: mergedProfile.age
+        });
+        // Verify it was actually updated
+        const verify = await this.usersRepo.getUserProfile(userId);
+        if (!verify || verify.profile_json?.name !== mergedProfile.name) {
+          logger.error('Profile update verification failed', { 
+            userId,
+            expectedName: mergedProfile.name,
+            actualName: verify?.profile_json?.name
+          });
+        }
       }
     } else if (preferences || settings) {
       // Legacy: handle preferences/settings separately if profile_json not provided

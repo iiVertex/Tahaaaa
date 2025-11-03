@@ -79,12 +79,12 @@ export class ProductService {
   }
 
   /**
-   * Calculate coins discount: 1% per 500 coins (capped at 20%)
+   * Calculate coins discount: 1% per 100 coins (capped at 20%)
    * @param {number} userCoins - User's current coin balance
    * @returns {number} Discount percentage (0-20)
    */
   calculateCoinsDiscount(userCoins = 0) {
-    const coinsDiscountPercent = Math.min(20, Math.floor(userCoins / 500) * 1);
+    const coinsDiscountPercent = Math.min(20, Math.floor(userCoins / 100) * 1);
     return coinsDiscountPercent;
   }
 

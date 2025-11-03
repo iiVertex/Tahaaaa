@@ -28,7 +28,7 @@ type Mission = {
   };
 };
 
-export default function MissionCard({ mission, onStart, onComplete, loading, aiPick, disabled, userDifficultyPreference, autoExpandSteps }: { 
+export default function MissionCard({ mission, onStart, onComplete, loading, aiPick, disabled, userDifficultyPreference, autoExpandSteps, onCardClick }: { 
   mission: Mission; 
   onStart: (id:string)=>Promise<void>|void; 
   onComplete: (id:string)=>Promise<void>|void; 
@@ -37,6 +37,7 @@ export default function MissionCard({ mission, onStart, onComplete, loading, aiP
   disabled?: boolean; // Disable start button if another mission is active
   userDifficultyPreference?: string; // User's profile difficulty preference for coin rewards
   autoExpandSteps?: boolean; // Auto-expand steps when mission is just started (from Showcase redirect)
+  onCardClick?: (mission: Mission) => void; // Callback when card is clicked to open ChallengeView
 }) {
   const { t } = useTranslation();
   const [busy, setBusy] = React.useState<'start'|'complete'|null>(null);
@@ -127,7 +128,36 @@ export default function MissionCard({ mission, onStart, onComplete, loading, aiP
   };
   
   return (
-    <motion.div className="qic-card" style={{ padding: 12, opacity: done ? 0.6 : 1, position: 'relative' }} variants={cardEntranceVariants} initial="initial" animate="animate">
+    <motion.div 
+      className="qic-card" 
+      style={{ 
+        padding: 12, 
+        opacity: done ? 0.6 : 1, 
+        position: 'relative',
+        cursor: onCardClick ? 'pointer' : 'default',
+        userSelect: 'none'
+      }} 
+      variants={cardEntranceVariants} 
+      initial="initial" 
+      animate="animate"
+      onClick={(e) => {
+        // Don't trigger card click if clicking on buttons or interactive elements
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'BUTTON' || target.closest('button') || target.closest('[role="button"]')) {
+          return;
+        }
+        onCardClick && onCardClick(mission);
+      }}
+      onKeyDown={(e) => {
+        if (onCardClick && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onCardClick(mission);
+        }
+      }}
+      tabIndex={onCardClick ? 0 : undefined}
+      role={onCardClick ? 'button' : undefined}
+      aria-label={onCardClick ? `Click to focus on ${mission.title_en || mission.title || 'mission'}` : undefined}
+    >
       {/* Status Badge - Top Right */}
       <div 
         aria-label={`Mission status: ${missionStatus.label}`}
@@ -194,7 +224,10 @@ export default function MissionCard({ mission, onStart, onComplete, loading, aiP
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>3-Step Execution Plan</div>
                 <button 
-                  onClick={() => setShowSteps(!showSteps)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowSteps(!showSteps);
+                  }}
                   style={{ 
                     fontSize: 12, 
                     background: 'transparent', 
@@ -247,11 +280,41 @@ export default function MissionCard({ mission, onStart, onComplete, loading, aiP
                     ))
                   ) : (
                     <div style={{ fontSize: 13, color: '#666', fontStyle: 'italic' }}>
-                      Steps will be generated when you start the mission...
+                      {isActive ? 'Loading steps...' : 'Steps will be generated when you start the mission...'}
                     </div>
                   )}
                 </div>
               )}
+            </div>
+          )}
+          
+          {/* Explicit "Expand Mission" button - ALWAYS visible, opens ChallengeView */}
+          {onCardClick && (
+            <div style={{ marginTop: 12 }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCardClick(mission);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  background: 'var(--qic-secondary)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8
+                }}
+              >
+                <span>▶</span>
+                <span>{isActive ? 'Expand Mission & View Details' : 'View Mission Details'}</span>
+              </button>
             </div>
           )}
         </div>

@@ -5,7 +5,7 @@ import { authenticateUser } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { rateLimit } from 'express-rate-limit';
-import { strictRateLimit } from '../middleware/security.js';
+import { strictRateLimit, dailyTokenLimit, missionCompletionRateLimit } from '../middleware/security.js';
 
 /** @param {{ mission: import('../services/mission.service.js').MissionService, product?: import('../services/product.service.js').ProductService }} deps */
 export function createMissionsRouter(deps) {
@@ -47,7 +47,11 @@ export function createMissionsRouter(deps) {
               status: userMission.status || 'available',
               progress: userMission.progress || 0,
               started_at: userMission.started_at,
-              completed_at: userMission.completed_at
+              completed_at: userMission.completed_at,
+              // Include rewards for completed missions (for Achievements display)
+              coins_earned: userMission.coins_earned,
+              xp_earned: userMission.xp_earned,
+              lifescore_change: userMission.lifescore_change
             } : {
               status: 'available',
               progress: 0,
@@ -60,6 +64,8 @@ export function createMissionsRouter(deps) {
         const startIndex = (page - 1) * limit;
         const endIndex = startIndex + limit;
         const paginatedMissions = missionsWithProgress.slice(startIndex, endIndex);
+        
+        // All missions are accessible - no initial stage gating
 
         res.json({
           success: true,
@@ -121,11 +127,58 @@ export function createMissionsRouter(deps) {
   // Generate personalized missions for user
   router.post('/generate', 
     authenticateUser,
+    dailyTokenLimit, // Daily token limit (50 AI calls per day)
     strictRateLimit,
     asyncHandler(async (req, res) => {
       const userId = req.user.id;
 
-      const result = await missionService.generateMissions(userId);
+      // CRITICAL: Deduct coins BEFORE AI API call (10 coins for mission generation)
+      const coinCost = 10;
+      const { container } = await import('../di/container.js');
+      const user = await container.repos.users.getById(userId);
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+      
+      const currentCoins = user.coins || 0;
+      if (currentCoins < coinCost) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient coins. Required: ${coinCost}, Current: ${currentCoins}`,
+          required: coinCost,
+          current: currentCoins
+        });
+      }
+      
+      // Deduct coins
+      await container.repos.users.update(userId, {
+        coins: Math.max(0, currentCoins - coinCost)
+      });
+      
+      logger.info('Coins deducted for AI mission generation', {
+        userId,
+        coinCost,
+        previousCoins: currentCoins,
+        newCoins: currentCoins - coinCost
+      });
+
+      let result;
+      try {
+        result = await missionService.generateMissions(userId);
+      } catch (aiError) {
+        const errorMsg = aiError?.message || 'AI API unavailable';
+        if (errorMsg.includes('credits exceeded') || errorMsg.includes('DISABLE_AI_API')) {
+          logger.warn('AI API unavailable for mission generation', { error: errorMsg });
+          return res.status(503).json({
+            success: false,
+            message: 'AI service temporarily unavailable. Mission generation disabled. Please try again later.',
+            error: errorMsg,
+            disabled: true
+          });
+        }
+        throw aiError;
+      }
+      
       if (!result.ok) {
         return res.status(result.status || 500).json({ success: false, message: result.message });
       }
@@ -157,7 +210,7 @@ export function createMissionsRouter(deps) {
   // Complete a mission
   router.post('/complete', 
     authenticateUser,
-    strictRateLimit,
+    missionCompletionRateLimit, // Use more lenient rate limit for mission completion
     validate(completeMissionSchema),
     asyncHandler(async (req, res) => {
       const userId = req.user.id;
@@ -305,18 +358,66 @@ export function createMissionsRouter(deps) {
 
       try {
         // Get user's active mission for this missionId
-        const { userProgress } = await missionService.listMissions({}, userId);
-        const userMission = userProgress.find(um => um.mission_id === missionId && um.status === 'active');
+        const { userProgress, missions } = await missionService.listMissions({}, userId);
         
+        // Try to find mission by mission_id (UUID) first
+        let userMission = userProgress.find(um => um.mission_id === missionId && (um.status === 'active' || um.status === 'completed'));
+        
+        // If not found, try to match by checking if missionId is a temporary ID from daily missions
+        // Daily missions use format: daily-easy-{timestamp}, daily-medium-{timestamp}, daily-hard-{timestamp}
+        if (!userMission && (missionId.startsWith('daily-easy-') || missionId.startsWith('daily-medium-') || missionId.startsWith('daily-hard-'))) {
+          // Extract difficulty from temporary ID
+          const difficulty = missionId.includes('easy') ? 'easy' : missionId.includes('hard') ? 'hard' : 'medium';
+          
+          // Find the most recent active mission with matching difficulty that was started today
+          const today = new Date().toISOString().split('T')[0];
+          userMission = userProgress.find(um => {
+            const mission = missions.find(m => m.id === um.mission_id);
+            return mission && 
+                   mission.difficulty === difficulty && 
+                   (um.status === 'active' || um.status === 'completed') &&
+                   um.started_at && 
+                   um.started_at.startsWith(today);
+          });
+        }
+        
+        // If still not found, try to find any active mission for this user (fallback)
         if (!userMission) {
-          return res.status(404).json({ success: false, message: 'Active mission not found' });
+          // Log for debugging
+          logger.warn('Mission steps lookup failed', { 
+            userId, 
+            missionId, 
+            availableUserMissions: userProgress.map(um => ({ 
+              mission_id: um.mission_id, 
+              status: um.status 
+            })) 
+          });
+          return res.status(404).json({ success: false, message: 'Mission not found or not started' });
         }
 
         // Get steps from missionStepsRepo via container
         const { container } = await import('../di/container.js');
-        const steps = await container.repos.missionSteps.getByUserMission(userMission.id);
+        let steps = [];
+        try {
+          if (container.repos.missionSteps?.getByUserMission) {
+            steps = await container.repos.missionSteps.getByUserMission(userMission.id);
+          } else if (container.repos.missionSteps?.list) {
+            // Fallback: query by user_mission_id
+            steps = await container.repos.missionSteps.list({ user_mission_id: userMission.id });
+          }
+        } catch (stepError) {
+          logger.warn('Error fetching mission steps, returning empty array', { error: stepError?.message });
+          steps = [];
+        }
 
-        res.json({ success: true, data: { steps: steps || [] } });
+        // Sort by step_number and ensure structure
+        steps = (steps || []).map(s => ({
+          step_number: s.step_number || s.stepNumber || 1,
+          title: s.title || s.title_en || `Step ${s.step_number || 1}`,
+          description: s.description || s.description_en || ''
+        })).sort((a, b) => a.step_number - b.step_number);
+
+        res.json({ success: true, data: { steps: steps } });
 
       } catch (error) {
         logger.error('Error getting mission steps:', error);

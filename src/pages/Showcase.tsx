@@ -1033,8 +1033,8 @@ export default function Showcase() {
                       <div>
                         <div><b>{m.title}</b> · {m.category} · {m.difficulty}</div>
                         <div>{t('showcase.rewardSummary', { xp: m.xp_reward, lifescore: m.lifescore_impact })}</div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
                         <button onClick={() => onStartMission(m.id)} disabled={loading}>{t('start')}</button>
                         <button onClick={() => onCompleteMission(m.id)} disabled={loading}>{t('complete')}</button>
                   </div>

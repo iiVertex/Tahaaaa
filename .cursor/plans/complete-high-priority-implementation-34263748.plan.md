@@ -1,76 +1,279 @@
-<!-- 34263748-aacb-4f3a-b902-b3f23a0639d2 d4a67809-9fa9-4815-9356-1ee5b38753b1 -->
-# `Mission Completion & Badge System Fix
+<!-- 34263748-aacb-4f3a-b902-b3f23a0639d2 0fd51786-52b2-4557-985a-c7a1182b10a0 -->
+# QIC Life Intelligence Engine — Strategic Implementation Map
 
-## Problem Analysis
+## Current State Analysis
 
-The current flow has too many layers - mission completion updates backend, but frontend filtering relies on response data that may not be immediately consistent. Need a more direct, guaranteed approach.
+### Existing Triggers & Events
 
-## Solution: Direct Badge Creation + Optimistic Updates
+- ✅ `user_behavior_events` table exists with comprehensive event tracking
+- ✅ `mission_complete` events logged in `mission.service.js` (line 340)
+- ✅ `mission_started` events logged in `mission.service.js` (line 218)
+- ✅ `scenario_simulate` events logged in `scenario.service.js` (line 47)
+- ✅ `login`/`logout` events can be tracked via session management
+- ✅ `session_end` needs to be implemented (hook on logout or inactivity)
 
-### Approach
+### Existing Rule-Based Logic (PRESERVE - DO NOT CHANGE)
 
-1. **Immediate Badge Creation**: When mission completes, directly create a badge entry (separate from mission status check)
-2. **Optimistic Frontend Updates**: Update UI immediately, then sync with backend
-3. **Dedicated Completed Endpoint**: Create simple endpoint that returns completed missions as badges
-4. **Double Persistence**: Store completed missions both in `user_missions` (status='completed') AND in a lightweight completed_missions cache
+- ✅ `matchPlansByScenario()` in `src/data/insurancePlans.ts` - strict category filtering
+- ✅ `rerankByProfile()` in `src/data/insurancePlans.ts` - profile-based ranking
+- ✅ `getDiscounts()` in `src/data/insurancePlans.ts` - profile-based discount calculation
+- ✅ Default scenario buttons in `Showcase.tsx` - rule-based plan matching
+- ✅ Bundle calculator - rule-based savings calculation
+- ✅ Coin-to-discount conversion (100 coins = 1% off) - rule-based
 
-### Implementation Steps
+### Existing AI API Calls (OPTIMIZE - ADD ONLY WHERE EFFICIENT)
 
-#### 1. Create Lightweight Badge Store (backend/services/mission-badges.service.js)
+- ✅ Mission generation (`generateMissions`, `generateDailyMissions`) - KEEP
+- ✅ Mission steps generation (`generateMissionSteps`) - KEEP
+- ✅ Scenario simulation (`simulateScenario`) - KEEP
+- ✅ Plan detail generation (`generatePlanDetailContent`) - KEEP
+- ✅ Daily brief generation - KEEP
+- ⚠️ Some AI calls may be redundant - need to audit
 
-- New service that directly manages completed missions as badges
-- Stores: mission_id, user_id, coins_earned, xp_earned, completed_at, badge_icon
-- Works alongside existing user_missions table
-- Provides direct badge creation method
+### Integration Points
 
-#### 2. Update Mission Completion Flow (backend/routes/missions.js)
+1. **Mission Completion** → `/missions/complete` endpoint → Add Intelligence Engine trigger
+2. **Scenario Simulation** → `/ai/scenarios/simulate` endpoint → Add Intelligence Engine trigger
+3. **Session End** → Need to implement → Add Intelligence Engine trigger
+4. **Profile Update** → `/profile` endpoint → Add Intelligence Engine trigger (optional)
 
-- After mission completion, immediately call badge creation
-- Return badge data in completion response for immediate frontend use
+---
 
-#### 3. Create Dedicated Badges Endpoint (backend/routes/missions.js)
+## Implementation Stages
 
-- `GET /missions/completed-badges` - Returns only completed missions formatted as badges
-- Simple, fast, reliable
+### Stage 0: Database Schema (ai_state table)
 
-#### 4. Frontend Optimistic Updates (src/pages/Missions.tsx, src/pages/Achievements.tsx)
+**File:** `backend/schema.sql`
 
-- Immediately remove mission from list when "Complete" is clicked
-- Immediately add badge to Achievements page
-- Then sync with backend
-- If sync fails, rollback and show error
+**Action:** Add `ai_state` table after existing tables (before RLS policies section)
 
-#### 5. Simplified Status Check (src/pages/Missions.tsx)
+```sql
+-- AI State Table - Stores Intelligence Engine personalization state
+CREATE TABLE IF NOT EXISTS ai_state (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    last_prompt TEXT,
+    last_ai_response JSONB DEFAULT '{}',
+    applied_changes JSONB DEFAULT '{}',
+    source VARCHAR(20) DEFAULT 'rule' CHECK (source IN ('rule', 'ai', 'hybrid')),
+    ai_confidence DECIMAL(3,2) DEFAULT 0.0 CHECK (ai_confidence >= 0 AND ai_confidence <= 1),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id) -- One active state per user
+);
 
-- More aggressive filtering that also checks if mission exists in completed badges
-- Cross-reference with completed badges list
+CREATE INDEX IF NOT EXISTS idx_ai_state_user ON ai_state(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_state_updated ON ai_state(updated_at DESC);
 
-## Files to Create/Modify
+ALTER TABLE ai_state ENABLE ROW LEVEL SECURITY;
+CREATE POLICY ai_state_select_own ON ai_state
+    FOR SELECT USING (COALESCE(current_user_uuid(), auth.uid()) = user_id);
+CREATE POLICY ai_state_insert_own ON ai_state
+    FOR INSERT WITH CHECK (COALESCE(current_user_uuid(), auth.uid()) = user_id);
+CREATE POLICY ai_state_update_own ON ai_state
+    FOR UPDATE USING (COALESCE(current_user_uuid(), auth.uid()) = user_id);
+```
 
-**New Files:**
+**Test:** Migration script validates table creation and indexes
 
-- `backend/services/mission-badges.service.js` - Lightweight badge management
+---
 
-**Modified Files:**
+### Stage 1: Intelligence Service (Core Engine)
 
-- `backend/routes/missions.js` - Add badge creation on completion, add completed-badges endpoint
-- `backend/services/mission.service.js` - Integrate badge service
-- `src/pages/Missions.tsx` - Add optimistic removal + badge check
-- `src/pages/Achievements.tsx` - Add optimistic badge addition + use dedicated endpoint
-- `src/lib/api.ts` - Add `getCompletedBadges()` function
+**File:** `backend/services/intelligence.service.js` (NEW)
 
-## Key Innovations
+**Purpose:** Self-contained service that:
 
-1. **Dual Storage**: Store in both user_missions (status) AND badge cache for reliability
-2. **Optimistic UI**: Instant feedback, sync later
-3. **Dedicated Endpoint**: Fast, focused endpoint for badges only
-4. **Minimal Changes**: Works with existing code, no major refactor
+- Fetches user context from Supabase
+- Applies rule-based personalization
+- Optionally calls AI API when conditions met
+- Stores results in `ai_state`
 
-### To-dos
+**Key Methods:**
 
-- [ ] Create mission-badges.service.js - lightweight service to manage completed missions as badges
-- [ ] Update mission completion route to immediately create badge entry after completion
-- [ ] Create GET /missions/completed-badges endpoint for fast badge retrieval
-- [ ] Add getCompletedBadges() function in src/lib/api.ts
-- [ ] Add optimistic mission removal in Missions.tsx - remove from UI immediately on completion
-- [ ] Add optimistic badge addition in Achievements.tsx and use dedicated badges endpoint
+1. `personalize(userId, trigger, context)` - Main entry point
+2. `_fetchUserContext(userId)` - Gets user data, activity, last ai_state
+3. `_applyRules(context)` - Rule-based personalization (deterministic)
+4. `_shouldUseAI(context)` - Determines if AI call is needed
+5. `_callAIPersonalization(context)` - AI API integration
+6. `_storeState(userId, result)` - Persists to ai_state table
+
+**Rule-Based Logic (Preserve Existing Patterns):**
+
+```javascript
+_applyRules(context) {
+  const { user, activity, lastState } = context;
+  const changes = {
+    missions: [],
+    ui_prompts: [],
+    cross_sell: [],
+    lifescore_weights: {},
+    coins_delta: 0,
+    explain: ''
+  };
+
+  // Rule 1: Coins banner (if coins >= 500 && not shown recently)
+  if (user.coins >= 500) {
+    const lastShown = lastState?.applied_changes?.ui_prompts?.includes('show_rewards_banner');
+    const daysSinceShown = lastShown ? daysDiff(lastState.updated_at) : 999;
+    if (daysSinceShown >= 3) {
+      changes.ui_prompts.push('show_rewards_banner');
+      changes.explain += 'High coins balance; showing rewards banner. ';
+    }
+  }
+
+  // Rule 2: Cross-sell bundle (if explored 2+ product categories)
+  const categories = new Set(activity.filter(e => e.event_type === 'plan_explore')
+    .map(e => e.event_data?.product_category).filter(Boolean));
+  if (categories.size >= 2) {
+    changes.cross_sell.push({
+      type: 'bundle_suggest',
+      products: Array.from(categories),
+      reason: 'Multiple categories explored'
+    });
+    changes.explain += 'Multi-category interest detected; suggesting bundle. ';
+  }
+
+  // Rule 3: Re-engagement (if inactive 7+ days)
+  const lastActive = activity[0]?.created_at || user.last_active_at;
+  const daysInactive = daysDiff(lastActive);
+  if (daysInactive >= 7) {
+    changes.missions.push({
+      id: `reengage_${Date.now()}`,
+      title: 'Welcome Back!',
+      difficulty: 'easy',
+      reward_coins: 20,
+      lifescore_impact: 2,
+      reason: 'Re-engagement mission for inactive user'
+    });
+    changes.explain += 'User inactive 7+ days; generating re-engagement mission. ';
+  }
+
+  // Rule 4: Mission escalation (if missed 3 consecutive missions)
+  const recentMissed = activity.filter(e => 
+    e.event_type === 'mission_fail' || 
+    (e.event_type === 'mission_start' && !activity.find(a => 
+      a.event_type === 'mission_complete' && 
+      a.event_data?.mission_id === e.event_data?.mission_id &&
+      a.created_at > e.created_at
+    ))
+  ).slice(0, 3);
+  if (recentMissed.length >= 3) {
+    changes.missions.push({
+      id: `easy_${Date.now()}`,
+      title: 'Easy Win Mission',
+      difficulty: 'easy',
+      reward_coins: 15,
+      lifescore_impact: 3,
+      reason: 'Mission fatigue detected; offering easier mission with higher reward'
+    });
+    changes.explain += 'Mission fatigue detected; offering easier mission. ';
+  }
+
+  // Rule 5: LifeScore drop (if fell 5+ in 14 days)
+  const lifescoreHistory = context.lifescoreHistory || [];
+  const recentDrop = lifescoreHistory.find(h => 
+    daysDiff(h.created_at) <= 14 && 
+    h.change_amount <= -5
+  );
+  if (recentDrop) {
+    changes.ui_prompts.push({
+      id: 'lifescore_educational',
+      type: 'banner',
+      priority: 2,
+      text: 'Your LifeScore dropped. Complete a mission to boost it!',
+      cta: 'open_missions'
+    });
+    changes.explain += 'LifeScore drop detected; showing educational prompt. ';
+  }
+
+  return {
+    applied_changes: changes,
+    metadata: { source: 'rule', ai_confidence: 0.0 }
+  };
+}
+```
+
+**AI Integration (Progressive Replacement):**
+
+```javascript
+_shouldUseAI(context) {
+  const { user, activity, lastState } = context;
+  
+  // Condition 1: High-activity users (≥5 events/day average)
+  const last7DaysActivity = activity.filter(a => daysDiff(a.created_at) <= 7);
+  const avgEventsPerDay = last7DaysActivity.length / 7;
+  if (avgEventsPerDay >= 5) return true;
+
+  // Condition 2: Manual admin trigger (via context flag)
+  if (context.forceAI === true) return true;
+
+  // Condition 3: Weekly scheduled refresh (if last AI call was 7+ days ago)
+  const lastAICall = lastState?.updated_at;
+  if (lastAICall && daysDiff(lastAICall) >= 7 && lastState?.source === 'ai') return true;
+
+  // Condition 4: Mission fatigue or LifeScore stagnation
+  const completedMissions = activity.filter(e => e.event_type === 'mission_complete').length;
+  const startedMissions = activity.filter(e => e.event_type === 'mission_start').length;
+  const completionRate = startedMissions > 0 ? completedMissions / startedMissions : 1;
+  if (completionRate < 0.5 && startedMissions >= 3) return true; // Mission fatigue
+
+  const lifescoreStagnant = context.lifescoreHistory?.slice(0, 14)
+    .every(h => Math.abs(h.change_amount) < 2);
+  if (lifescoreStagnant && daysDiff(activity[0]?.created_at) <= 14) return true;
+
+  return false; // Default: use rules
+}
+```
+
+**AI Prompt Structure:**
+
+```javascript
+
+_buildAIPrompt(context) {
+
+const { user, activity, profile } = context;
+
+// Anonymize PII - use pseudonymous data only
+
+const userSummary = {
+
+id: user.id.slice(0, 8) + '...', // Pseudonymous
+
+age: user.age,
+
+nationality: user.nationality,
+
+preferences: profile?.preferences || [],
+
+coins: user.coins,
+
+lifescore: user.lifescore,
+
+level: user.level
+
+};
+
+const recentActivity = activity.slice(0, 30).map(e => ({
+
+event_type: e.event_type,
+
+category: e.event_data?.category || e.event_data?.product_category,
+
+created_at: e.created_at
+
+}));
+
+return {
+
+system: "You are QIC Life's Adaptive Personalization Engine. Output JSON matching RESPONSE_SCHEMA only. Be concise and actionable.",
+
+input: {
+
+user_summary: userSummary,
+
+recent_activity: recentActivity,
+
+goals: {
+
+primary: "increase_daily_visits",
